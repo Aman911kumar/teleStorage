@@ -1,0 +1,31 @@
+import "dotenv/config";
+import { z } from "zod";
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().default(4000),
+  APP_BASE_URL: z.string().url().default("http://localhost:4000"),
+  CORS_ORIGINS: z.string().default("http://localhost:5173,http://127.0.0.1:5173"),
+  MONGODB_URI: z.string().min(1),
+  REDIS_URL: z.string().optional(),
+  QUEUE_DRIVER: z.enum(["bullmq", "memory"]).default("memory"),
+  JWT_SECRET: z.string().min(24),
+  JWT_EXPIRES_IN: z.string().default("7d"),
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  TELEGRAM_CHANNEL_ID: z.string().min(1),
+  STORAGE_PROVIDER: z.enum(["telegram", "s3", "cloudinary", "local"]).default("telegram"),
+  MAX_UPLOAD_MB: z.coerce.number().default(500),
+  LOCAL_CACHE_DIR: z.string().default("tmp/cache"),
+  UPLOAD_TMP_DIR: z.string().default("tmp/uploads"),
+  SIGNED_URL_SECRET: z
+    .string()
+    .min(16, "SIGNED_URL_SECRET must be at least 16 characters. Use a long random secret."),
+  ENCRYPTION_SECRET: z
+    .string()
+    .min(32, "ENCRYPTION_SECRET must be at least 32 characters. Use a long random secret."),
+  SIGNED_URL_TTL_SECONDS: z.coerce.number().default(900),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
+  RATE_LIMIT_MAX: z.coerce.number().default(120)
+});
+
+export const env = envSchema.parse(process.env);

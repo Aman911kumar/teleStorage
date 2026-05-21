@@ -1,0 +1,18 @@
+import { motion } from "framer-motion";
+import type { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
+
+type CardProps = Omit<ComponentProps<typeof motion.div>, "initial" | "whileInView" | "viewport" | "transition">;
+
+export function Card({ className, ...props }: CardProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.28 }}
+      className={cn("rounded-lg border border-border bg-panel/88 shadow-[0_16px_60px_rgba(0,0,0,0.18)]", className)}
+      {...props}
+    />
+  );
+}
