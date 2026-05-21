@@ -25,12 +25,14 @@ const mediaSchema = new Schema(
     providerFileId: { type: String, required: true },
     providerMessageId: String,
     workspaceId: { type: Types.ObjectId, ref: "Workspace", index: true },
+    folderId: { type: Types.ObjectId, ref: "Folder", index: true },
     telegramFileId: String,
     telegramMessageId: String,
     mediaType: { type: String, enum: ["image", "video", "document", "thumbnail"], index: true },
     uploadedBy: { type: Types.ObjectId, ref: "User", index: true },
     visibility: { type: String, enum: ["public", "private"], default: "private", index: true },
     tags: [{ type: String, index: true }],
+    customMetadata: { type: Map, of: String, default: {} },
     metadata: {
       width: Number,
       height: Number,
@@ -40,7 +42,7 @@ const mediaSchema = new Schema(
     },
     variants: [mediaVariantSchema],
     thumbnail: mediaVariantSchema,
-    checksum: { type: String, required: true, unique: true },
+    checksum: { type: String, required: true },
     status: {
       type: String,
       enum: ["uploaded", "processing", "ready", "failed", "deleted"],
@@ -52,6 +54,7 @@ const mediaSchema = new Schema(
 );
 
 mediaSchema.index({ createdAt: -1 });
+mediaSchema.index({ workspaceId: 1, checksum: 1 }, { unique: true });
 
 export type MediaDocument = InferSchemaType<typeof mediaSchema> & { _id: Types.ObjectId };
 export const MediaModel = model("Media", mediaSchema);

@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { NotFoundError } from "../../core/errors.js";
+import { generatePublicProjectId, generateUploadToken, hashUploadToken } from "../../utils/apiTokens.js";
 import { decryptSecret, encryptSecret, maskTelegramToken } from "../../utils/encryption.js";
 import { TelegramValidationService } from "./telegram-validation.service.js";
 import { WorkspaceModel } from "./workspace.model.js";
@@ -17,9 +18,12 @@ export class WorkspaceService {
 
   async create(owner: string, input: { name: string; telegramBotToken: string; telegramChannelId: string }) {
     const validation = await this.validator.validate(input.telegramBotToken, input.telegramChannelId);
+    const uploadToken = generateUploadToken();
     const workspace = await WorkspaceModel.create({
       name: input.name,
       slug: `${slugify(input.name)}-${nanoid(6)}`,
+      publicProjectId: generatePublicProjectId(),
+      uploadTokenHash: hashUploadToken(uploadToken),
       telegramBotTokenEncrypted: encryptSecret(input.telegramBotToken),
       telegramChannelId: input.telegramChannelId,
       telegramBotUsername: validation.botUsername,
@@ -27,7 +31,7 @@ export class WorkspaceService {
       createdBy: owner,
       health: { status: "healthy", checkedAt: new Date(), message: "Telegram connection validated" }
     });
-    return this.safe(workspace.toObject());
+    return { ...this.safe(workspace.toObject()), uploadToken };
   }
 
   async list(owner: string) {
@@ -92,6 +96,17 @@ export class WorkspaceService {
     if (!workspace) throw new NotFoundError("Workspace not found");
   }
 
+  async rotateUploadToken(owner: string, id: string) {
+    const uploadToken = generateUploadToken();
+    const workspace = await WorkspaceModel.findOneAndUpdate(
+      { _id: id, createdBy: owner, isActive: true },
+      { uploadTokenHash: hashUploadToken(uploadToken) },
+      { new: true }
+    ).lean();
+    if (!workspace) throw new NotFoundError("Workspace not found");
+    return { ...this.safe(workspace), uploadToken };
+  }
+
   async getTokenForUpload(owner: string, id: string) {
     const workspace = await WorkspaceModel.findOne({ _id: id, createdBy: owner, isActive: true }).lean();
     if (!workspace) throw new NotFoundError("Workspace not found");
@@ -122,6 +137,7 @@ export class WorkspaceService {
     }
     const rest = { ...workspace };
     delete rest.telegramBotTokenEncrypted;
+    delete rest.uploadTokenHash;
     return { ...rest, telegramBotTokenMasked: masked };
   }
 }

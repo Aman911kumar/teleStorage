@@ -20,7 +20,7 @@ export class MediaProcessor {
     await fs.mkdir(env.UPLOAD_TMP_DIR, { recursive: true });
     const meta = await sharp(filePath).metadata();
     const mainPath = path.join(env.UPLOAD_TMP_DIR, `${nanoid()}.jpg`);
-    const thumbPath = path.join(env.UPLOAD_TMP_DIR, `${nanoid()}-thumb.webp`);
+    const thumbPath = path.join(env.UPLOAD_TMP_DIR, `${nanoid()}-thumb.jpg`);
 
     await sharp(filePath)
       .rotate()
@@ -30,12 +30,12 @@ export class MediaProcessor {
     await sharp(filePath)
       .rotate()
       .resize(400, 400, { fit: "cover" })
-      .webp({ quality: 76 })
+      .jpeg({ quality: 78, mozjpeg: true })
       .toFile(thumbPath);
 
     return {
       main: { path: mainPath, filename: path.basename(mainPath), mimeType: "image/jpeg", width: meta.width, height: meta.height },
-      thumbnail: { path: thumbPath, filename: path.basename(thumbPath), mimeType: "image/webp", label: "thumbnail" }
+      thumbnail: { path: thumbPath, filename: path.basename(thumbPath), mimeType: "image/jpeg", label: "thumbnail" }
     };
   }
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Database, Loader2, Send, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Copy, Database, Loader2, Send, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -184,6 +184,13 @@ export default function Workspaces() {
                   <h2 className="font-semibold text-white">{workspace.name}</h2>
                   <p className="mt-1 text-sm text-muted">@{workspace.telegramBotUsername} - {workspace.telegramChannelTitle ?? workspace.telegramChannelId}</p>
                   <code className="mt-3 block rounded bg-[#090c13] p-2 text-xs text-muted">{workspace.telegramBotTokenMasked}</code>
+                  <div className="mt-3 grid gap-2 rounded border border-border bg-[#090c13] p-3 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted">Project ID</span>
+                      <button className="inline-flex items-center gap-1 text-accent" onClick={() => { navigator.clipboard.writeText(workspace.publicProjectId); toast.success("Project ID copied"); }}><Copy size={13} /> Copy</button>
+                    </div>
+                    <code className="break-all text-slate-300">{workspace.publicProjectId}</code>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><p className="text-muted">Storage</p><p className="text-white">{formatBytes(workspace.storageUsed)}</p></div>

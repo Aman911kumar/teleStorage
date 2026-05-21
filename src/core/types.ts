@@ -10,4 +10,11 @@ export interface AuthUser {
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
   workspaceId?: string;
+  apiWorkspace?: {
+    id: string;
+    ownerId: string;
+    publicProjectId: string;
+    apiKeyId?: string;
+    scopes?: string[];
+  };
 }

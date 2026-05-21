@@ -14,7 +14,7 @@ analyticsRouter.get(
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const owner = req.user!.id;
     const ownerId = new Types.ObjectId(owner);
-    const [mediaStats, workspaces, recentUploads, fileTypes] = await Promise.all([
+    const [mediaStats, workspaces, recentUploads, fileTypes, mediaTypeStats] = await Promise.all([
       MediaModel.aggregate([
         { $match: { uploadedBy: ownerId, status: { $ne: "deleted" } } },
         { $group: { _id: null, totalFiles: { $sum: 1 }, storageUsed: { $sum: "$size" } } }
@@ -33,10 +33,16 @@ analyticsRouter.get(
         { $group: { _id: "$mimeType", count: { $sum: 1 }, bytes: { $sum: "$size" } } },
         { $sort: { bytes: -1 } },
         { $limit: 8 }
+      ]),
+      MediaModel.aggregate([
+        { $match: { uploadedBy: ownerId, status: { $ne: "deleted" } } },
+        { $group: { _id: "$mediaType", count: { $sum: 1 } } }
       ])
     ]);
 
     const totals = mediaStats[0] ?? { totalFiles: 0, storageUsed: 0 };
+    const imageCount = mediaTypeStats.find((item) => item._id === "image")?.count ?? 0;
+    const videoCount = mediaTypeStats.find((item) => item._id === "video")?.count ?? 0;
     res.json({
       success: true,
       data: {
@@ -46,8 +52,8 @@ analyticsRouter.get(
         bandwidthUsed: workspaces.reduce((sum, workspace) => sum + (workspace.bandwidthUsed ?? 0), 0),
         compressionSavings: workspaces.reduce((sum, workspace) => sum + (workspace.compressionSavings ?? 0), 0),
         apiRequests: workspaces.reduce((sum, workspace) => sum + (workspace.uploadCount ?? 0), 0),
-        imageCount: workspaces.reduce((sum, workspace) => sum + (workspace.imageCount ?? 0), 0),
-        videoCount: workspaces.reduce((sum, workspace) => sum + (workspace.videoCount ?? 0), 0),
+        imageCount,
+        videoCount,
         workspaces,
         recentUploads,
         fileTypes,

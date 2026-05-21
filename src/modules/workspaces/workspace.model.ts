@@ -1,9 +1,12 @@
 import { Schema, model, type InferSchemaType, Types } from "mongoose";
+import { generatePublicProjectId, generateUploadToken, hashUploadToken } from "../../utils/apiTokens.js";
 
 const workspaceSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, lowercase: true, trim: true, index: true },
+    publicProjectId: { type: String, required: true, unique: true, default: generatePublicProjectId, index: true },
+    uploadTokenHash: { type: String, required: true, default: () => hashUploadToken(generateUploadToken()) },
     telegramBotTokenEncrypted: { type: String, required: true },
     telegramChannelId: { type: String, required: true },
     telegramBotUsername: { type: String, required: true },

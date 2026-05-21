@@ -12,6 +12,7 @@ const messages: Record<string, string> = {
   TELEGRAM_BOT_NOT_ADMIN: "The bot must be an admin in the Telegram channel.",
   WORKSPACE_REQUIRED: "Select a Telegram workspace before uploading.",
   UPLOAD_CANCELED: "Upload canceled.",
+  DUPLICATE_MEDIA: "This file already exists in your workspace.",
   INVALID_CREDENTIALS: "Email or password is incorrect.",
   FORBIDDEN: "Your session expired. Please sign in again.",
   UNSUPPORTED_MEDIA_TYPE: "This file type is not supported.",

@@ -72,3 +72,11 @@ workspaceRouter.delete(
     res.status(204).send();
   })
 );
+
+workspaceRouter.post(
+  "/api/workspaces/:id/upload-token/rotate",
+  requireAuth,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    res.json({ success: true, data: await service.rotateUploadToken(req.user!.id, req.params.id) });
+  })
+);

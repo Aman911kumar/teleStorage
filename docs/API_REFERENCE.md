@@ -16,7 +16,16 @@ All dashboard APIs use a user JWT:
 Authorization: Bearer <jwt>
 ```
 
-TeleStore uses only user sessions and connected Telegram workspaces.
+Dashboard APIs use user sessions and connected Telegram workspaces.
+
+External app APIs use scoped API credentials:
+
+```http
+x-api-key: your_api_key_here
+x-api-secret: example_secret
+```
+
+You can create, revoke and regenerate API keys from the API Access dashboard. Secret keys are shown once and stored as a hash.
 
 ## Standard JSON Response
 
@@ -108,6 +117,7 @@ Bot tokens are encrypted in the database and only a masked token is returned.
   "_id": "665f0f000000000000000001",
   "name": "Media Cloud",
   "slug": "media-cloud-a1b2c3",
+  "publicProjectId": "prj_abc123xyz78900",
   "telegramChannelId": "-1001234567890",
   "telegramBotUsername": "my_storage_bot",
   "telegramBotTokenMasked": "12345678:ABCD********",
@@ -215,6 +225,7 @@ Response `201`:
   "data": {
     "_id": "665f0f000000000000000001",
     "name": "Media Cloud",
+    "publicProjectId": "prj_abc123xyz78900",
     "telegramBotUsername": "my_storage_bot",
     "telegramBotTokenMasked": "12345678:ABCD********",
     "telegramChannelId": "-1001234567890",
@@ -224,6 +235,95 @@ Response `201`:
       "message": "Telegram connection validated"
     }
   }
+}
+```
+
+## API Keys
+
+### GET `/api/api-keys`
+
+Lists API keys owned by the authenticated user. Optional query param: `workspaceId`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "665f30000000000000000001",
+      "workspaceId": "665f0f000000000000000001",
+      "name": "Production key",
+      "publicKey": "demo_key",
+      "publicKeyMasked": "demo_key",
+      "scopes": ["full"],
+      "status": "active",
+      "lastUsedAt": null,
+      "createdAt": "2026-05-22T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### POST `/api/api-keys`
+
+Creates a scoped API key. The `secret` is returned only once.
+
+Request:
+
+```json
+{
+  "workspaceId": "665f0f000000000000000001",
+  "name": "Production key",
+  "scopes": ["upload", "read"]
+}
+```
+
+Response `201`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "665f30000000000000000001",
+    "name": "Production key",
+    "publicKey": "demo_key",
+    "publicKeyMasked": "demo_key",
+    "secret": "example_secret",
+    "scopes": ["upload", "read"],
+    "status": "active"
+  }
+}
+```
+
+### POST `/api/api-keys/:id/regenerate`
+
+Generates a new secret for an existing API key. The new `secret` is returned only once.
+
+### DELETE `/api/api-keys/:id`
+
+Revokes an API key. Revoked keys can no longer call `/api/v1/*`.
+
+### GET `/api/api-request-logs`
+
+Lists recent API requests. Optional query param: `workspaceId`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "665f40000000000000000001",
+      "method": "POST",
+      "path": "/api/v1/upload",
+      "statusCode": 201,
+      "durationMs": 532,
+      "success": true,
+      "createdAt": "2026-05-22T10:01:00.000Z"
+    }
+  ]
 }
 ```
 
@@ -345,6 +445,217 @@ Response:
 
 ```txt
 204 No Content
+```
+
+## External App API v1
+
+These endpoints are designed for future SDKs and external apps. They do not expose Telegram bot tokens or raw Telegram URLs.
+
+Required headers:
+
+```http
+x-api-key: your_api_key_here
+x-api-secret: example_secret
+```
+
+Alternative bearer format:
+
+```http
+Authorization: Bearer <your_api_key_here>:<example_secret>
+```
+
+### POST `/api/v1/upload`
+
+Uploads one or more files into the authenticated workspace.
+
+Content type:
+
+```http
+multipart/form-data
+```
+
+Form fields:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `file` | File | No | Single file upload |
+| `files` | File[] | No | Multiple files, up to 10 |
+| `folderId` | String | No | Folder to place files in |
+| `visibility` | `private` or `public` | No | Defaults to `private` |
+| `tags` | JSON string array | No | Example: `["avatar","user"]` |
+| `metadata` | JSON object | No | Custom string metadata |
+| `filename` | String | No | Custom display filename |
+
+Example:
+
+```bash
+curl -X POST http://localhost:4000/api/v1/upload \
+  -H "x-api-key: your_api_key_here" \
+  -H "x-api-secret: example_secret" \
+  -F "file=@image.png" \
+  -F "visibility=public" \
+  -F 'tags=["avatar"]'
+```
+
+Response `201`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "files": [
+      {
+        "id": "665f10000000000000000001",
+        "duplicate": false,
+        "url": "/media/665f10000000000000000001",
+        "signedUrl": "/media/665f10000000000000000001?token=...",
+        "publicUrl": "/media/665f10000000000000000001/view",
+        "apiUrl": "/api/v1/media/665f10000000000000000001"
+      }
+    ]
+  }
+}
+```
+
+### GET `/api/v1/media/:id`
+
+Returns metadata for a file in the authenticated workspace.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "665f10000000000000000001",
+    "originalName": "image.png",
+    "mimeType": "image/webp",
+    "size": 94512,
+    "visibility": "public",
+    "tags": ["avatar"],
+    "folderId": "665f20000000000000000001",
+    "metadata": {
+      "userId": "42"
+    },
+    "status": "ready",
+    "publicUrl": "/media/665f10000000000000000001/view",
+    "apiUrl": "/api/v1/media/665f10000000000000000001"
+  }
+}
+```
+
+### PATCH `/api/v1/media/:id`
+
+Renames or moves a file.
+
+Request:
+
+```json
+{
+  "originalName": "profile-avatar.png",
+  "folderId": "665f20000000000000000001"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "665f10000000000000000001",
+    "originalName": "profile-avatar.png",
+    "folderId": "665f20000000000000000001"
+  }
+}
+```
+
+### DELETE `/api/v1/media/:id`
+
+Deletes the Telegram message and MongoDB media record.
+
+Response:
+
+```txt
+204 No Content
+```
+
+### GET `/api/v1/files`
+
+Lists workspace files. Optional query params: `folderId`, `limit`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "665f10000000000000000001",
+      "originalName": "image.png",
+      "mimeType": "image/webp",
+      "size": 94512,
+      "visibility": "public",
+      "status": "ready"
+    }
+  ]
+}
+```
+
+### GET `/api/v1/search`
+
+Searches filenames and tags. Query params: `q`, `limit`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": []
+}
+```
+
+### POST `/api/v1/folders`
+
+Creates a folder.
+
+Request:
+
+```json
+{
+  "name": "avatars",
+  "parentId": "665f20000000000000000001",
+  "metadata": {
+    "scope": "users"
+  }
+}
+```
+
+Response `201`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "665f20000000000000000001",
+    "name": "avatars",
+    "path": "avatars",
+    "workspaceId": "665f0f000000000000000001"
+  }
+}
+```
+
+### GET `/api/v1/folders`
+
+Lists folders. Optional query param: `parentId`.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": []
+}
 ```
 
 ## Analytics

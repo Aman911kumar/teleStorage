@@ -11,12 +11,16 @@ const envSchema = z.object({
   QUEUE_DRIVER: z.enum(["bullmq", "memory"]).default("memory"),
   JWT_SECRET: z.string().min(24),
   JWT_EXPIRES_IN: z.string().default("7d"),
-  TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TELEGRAM_CHANNEL_ID: z.string().min(1),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHANNEL_ID: z.string().optional(),
   STORAGE_PROVIDER: z.enum(["telegram", "s3", "cloudinary", "local"]).default("telegram"),
   MAX_UPLOAD_MB: z.coerce.number().default(500),
   LOCAL_CACHE_DIR: z.string().default("tmp/cache"),
   UPLOAD_TMP_DIR: z.string().default("tmp/uploads"),
+  CACHE_TTL_SECONDS: z.coerce.number().default(3600),
+  CACHE_MAX_MB: z.coerce.number().default(512),
+  TEMP_FILE_TTL_SECONDS: z.coerce.number().default(3600),
+  CLEANUP_INTERVAL_SECONDS: z.coerce.number().default(900),
   SIGNED_URL_SECRET: z
     .string()
     .min(16, "SIGNED_URL_SECRET must be at least 16 characters. Use a long random secret."),

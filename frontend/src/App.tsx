@@ -22,6 +22,7 @@ const VerifyEmail = lazy(() => import("@/pages/auth/verify-email"));
 const Dashboard = lazy(() => import("@/pages/app/dashboard"));
 const SimpleAppPage = lazy(() => import("@/pages/app/simple-app-page"));
 const Workspaces = lazy(() => import("@/pages/app/workspaces"));
+const ApiAccess = lazy(() => import("@/pages/app/api-access"));
 const Analytics = lazy(() => import("@/pages/app/analytics"));
 const Docs = lazy(() => import("@/pages/app/docs"));
 const Media = lazy(() => import("@/pages/app/media"));
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="app/media" element={<Media />} />
             <Route path="app/uploads" element={<SimpleAppPage kind="uploads" />} />
             <Route path="app/workspaces" element={<Workspaces />} />
+            <Route path="app/api-access" element={<ApiAccess />} />
             <Route path="app/optimization" element={<SimpleAppPage kind="optimization" />} />
             <Route path="app/analytics" element={<Analytics />} />
             <Route path="app/docs" element={<Docs />} />

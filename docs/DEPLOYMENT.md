@@ -11,7 +11,8 @@
 ## Docker
 
 1. Copy `.env.example` to `.env`.
-2. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID`, `JWT_SECRET`, and `SIGNED_URL_SECRET`.
+2. Set `JWT_SECRET`, `SIGNED_URL_SECRET`, and `ENCRYPTION_SECRET`.
+3. Users connect their own Telegram bot token and channel ID from the dashboard workspace flow.
 3. Run:
 
 ```bash

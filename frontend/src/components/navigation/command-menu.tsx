@@ -7,6 +7,7 @@ const actions = [
   { label: "Dashboard", path: "/app" },
   { label: "Media Gallery", path: "/app/media" },
   { label: "Workspaces", path: "/app/workspaces" },
+  { label: "API Access", path: "/app/api-access" },
   { label: "Optimization", path: "/app/optimization" },
   { label: "Analytics", path: "/app/analytics" },
   { label: "Admin Analytics", path: "/admin" },

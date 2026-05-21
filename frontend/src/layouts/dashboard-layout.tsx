@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { BarChart3, Bell, BookOpen, Command, Database, FileUp, Gauge, Home, Image, Menu, Search, Settings, Shield, User } from "lucide-react";
+import { BarChart3, Bell, BookOpen, Command, Database, FileUp, Gauge, Home, Image, KeyRound, Menu, Search, Settings, Shield, User } from "lucide-react";
 import { CommandMenu } from "@/components/navigation/command-menu";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth-store";
@@ -11,6 +11,7 @@ const nav = [
   { to: "/app/media", label: "Media Library", icon: Image },
   { to: "/app/uploads", label: "Uploads", icon: FileUp },
   { to: "/app/workspaces", label: "Workspaces", icon: Database },
+  { to: "/app/api-access", label: "API Access", icon: KeyRound },
   { to: "/app/optimization", label: "Optimization", icon: Gauge },
   { to: "/app/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/app/docs", label: "Documentation", icon: BookOpen },

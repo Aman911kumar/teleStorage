@@ -21,7 +21,7 @@ async function bootstrapWorkers() {
     new Worker(
       "video-transcoding",
       async (job) => {
-        await processVideoTranscoding(job.data as { mediaId: string; sourcePath: string });
+        await processVideoTranscoding(job.data as { mediaId: string; sourcePath: string; workspaceId: string });
       },
       { connection: redis }
     ),

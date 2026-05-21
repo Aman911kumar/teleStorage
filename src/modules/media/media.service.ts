@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import type { Response } from "express";
-import { createStorageProvider } from "../../providers/index.js";
+import { nanoid } from "nanoid";
+import { env } from "../../config/env.js";
 import type { UploadInput } from "../../providers/storage.types.js";
 import { AppError, ForbiddenError, NotFoundError } from "../../core/errors.js";
 import { createSignedToken, verifySignedToken } from "../../utils/signing.js";
@@ -12,12 +16,21 @@ import { enqueueImageProcessing, enqueueThumbnail, enqueueVideoTranscoding } fro
 import { WorkspaceModel } from "../workspaces/workspace.model.js";
 import { WorkspaceService } from "../workspaces/workspace.service.js";
 import { TelegramStorageProvider } from "../../providers/telegram/TelegramStorageProvider.js";
+import { logger } from "../../utils/logger.js";
+import { trackTempFile, untrackTempFile } from "../../utils/activeTempFiles.js";
 
 type UploadKind = "image" | "video" | "audio" | "document";
+type UploadOptions = {
+  folderId?: string;
+  tags?: string[];
+  visibility?: "public" | "private";
+  metadata?: Record<string, string>;
+};
+const uploadLocks = new Map<string, Promise<void>>();
+const cacheLocks = new Map<string, Promise<string>>();
 
 export class MediaService {
   private repository = new MediaRepository();
-  private storage = createStorageProvider();
   private processor = new MediaProcessor();
   private workspaceService = new WorkspaceService();
 
@@ -26,33 +39,53 @@ export class MediaService {
     userId: string,
     kind: UploadKind,
     workspaceId?: string,
-    isAborted: () => boolean = () => false
+    isAborted: () => boolean = () => false,
+    options: UploadOptions = {}
   ) {
     if (!workspaceId) throw new AppError("workspaceId is required", 400, "WORKSPACE_REQUIRED");
-    const cleanupPaths = new Set<string>([file.path]);
+    const sourcePath = await this.materializeUpload(file);
+    const cleanupPaths = new Set<string>([sourcePath]);
+    let releaseUploadLock: () => void = () => undefined;
+    let lockKey: string | undefined;
+    let uploadLock: Promise<void> | undefined;
     try {
       const credentials = await this.workspaceService.getTokenForUpload(userId, workspaceId);
       const storage = new TelegramStorageProvider(credentials.botToken, credentials.channelId);
-      const signature = await validateFileSignature(file.path, file.mimetype);
-      const checksum = await sha256File(file.path);
-      const duplicate = await this.repository.findByChecksum(checksum, userId);
+      const signature = await validateFileSignature(sourcePath, file.mimetype);
+      const checksum = await sha256File(sourcePath);
+      const duplicate = await this.repository.findByChecksum(checksum, workspaceId);
       if (duplicate) return this.toResponse(duplicate.id, true);
 
+      lockKey = `${workspaceId}:${checksum}`;
+      const activeUpload = uploadLocks.get(lockKey);
+      if (activeUpload) {
+        await activeUpload.catch(() => undefined);
+        const duplicateAfterWait = await this.repository.findByChecksum(checksum, workspaceId);
+        if (duplicateAfterWait) return this.toResponse(duplicateAfterWait.id, true);
+      }
+
+      let releaseLock!: () => void;
+      uploadLock = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      uploadLocks.set(lockKey, uploadLock);
+      releaseUploadLock = releaseLock;
+
       let uploadInput: UploadInput = {
-        path: file.path,
-        filename: file.filename,
+        path: sourcePath,
+        filename: file.filename || file.originalname,
         mimeType: signature.mime,
         kind
       };
       let thumbnail: Record<string, unknown> | undefined;
 
       if (kind === "image") {
-        const processed = await this.processor.processImage(file.path);
+        const processed = await this.processor.processImage(sourcePath);
         cleanupPaths.add(processed.main.path);
         cleanupPaths.add(processed.thumbnail.path);
+        trackTempFile(processed.main.path);
+        trackTempFile(processed.thumbnail.path);
         uploadInput = { ...processed.main, kind };
-        const thumbUpload = await storage.uploadFile({ ...processed.thumbnail, kind: "thumbnail" });
-        thumbnail = { ...processed.thumbnail, label: "thumbnail", ...thumbUpload };
         await enqueueImageProcessing({ checksum });
       }
 
@@ -61,29 +94,55 @@ export class MediaService {
       if (!stored.providerFileId) {
         throw new AppError("Telegram upload succeeded but file processing failed.", 502, "TELEGRAM_FILE_ID_MISSING");
       }
+      if (kind === "image") {
+        thumbnail = {
+          label: "thumbnail",
+          mimeType: uploadInput.mimeType,
+          provider: stored.provider,
+          providerFileId: stored.providerFileId,
+          providerMessageId: stored.providerMessageId,
+          size: stored.size
+        };
+      }
 
       if (isAborted()) throw new AppError("Upload was canceled.", 499, "UPLOAD_CANCELED");
-      const media = await this.repository.create({
-        originalName: file.originalname,
-        filename: uploadInput.filename,
-        mimeType: uploadInput.mimeType,
-        size: file.size,
-        provider: stored.provider,
-        providerFileId: stored.providerFileId,
-        providerMessageId: stored.providerMessageId,
-        workspaceId,
-        telegramFileId: stored.providerFileId,
-        telegramMessageId: stored.providerMessageId,
-        mediaType: kind,
-        uploadedBy: userId,
-        visibility: "private",
-        tags: [],
-        metadata: {},
-        variants: [],
-        thumbnail,
-        checksum,
-        status: kind === "video" ? "processing" : "ready"
-      });
+      let duplicateRace = false;
+      const media = await this.repository
+        .create({
+          originalName: file.originalname,
+          filename: uploadInput.filename,
+          mimeType: uploadInput.mimeType,
+          size: file.size,
+          provider: stored.provider,
+          providerFileId: stored.providerFileId,
+          providerMessageId: stored.providerMessageId,
+          workspaceId,
+          telegramFileId: stored.providerFileId,
+          telegramMessageId: stored.providerMessageId,
+          mediaType: kind,
+          folderId: options.folderId,
+          uploadedBy: userId,
+          visibility: options.visibility ?? "private",
+          tags: options.tags ?? [],
+          customMetadata: options.metadata ?? {},
+          metadata: {},
+          variants: [],
+          thumbnail,
+          checksum,
+          status: kind === "video" ? "processing" : "ready"
+        })
+        .catch(async (error: unknown) => {
+          if ((error as { code?: number }).code !== 11000) throw error;
+          await storage.deleteFile(stored.providerFileId, stored.providerMessageId).catch(() => undefined);
+          const existing = await this.repository.findByChecksum(checksum, workspaceId);
+          if (existing) {
+            duplicateRace = true;
+            return existing;
+          }
+          throw new AppError("This file already exists in your workspace.", 409, "DUPLICATE_MEDIA");
+        });
+
+      if (duplicateRace) return this.toResponse(media.id, true);
 
       await WorkspaceModel.findByIdAndUpdate(workspaceId, {
         $inc: {
@@ -95,63 +154,94 @@ export class MediaService {
       });
 
       if (kind === "video") {
-        cleanupPaths.delete(file.path);
-        await enqueueVideoTranscoding({ mediaId: media.id, sourcePath: file.path });
-        await enqueueThumbnail({ mediaId: media.id, sourcePath: file.path });
+        cleanupPaths.delete(sourcePath);
+        await enqueueVideoTranscoding({ mediaId: media.id, sourcePath, workspaceId });
+        await enqueueThumbnail({ mediaId: media.id, sourcePath });
       }
 
       return this.toResponse(media.id, false);
     } finally {
-      await Promise.all([...cleanupPaths].map((target) => fs.rm(target, { force: true }).catch(() => undefined)));
+      releaseUploadLock();
+      if (lockKey && uploadLocks.get(lockKey) === uploadLock) uploadLocks.delete(lockKey);
+      await Promise.all(
+        [...cleanupPaths].map(async (target) => {
+          untrackTempFile(target);
+          await fs.rm(target, { force: true }).catch(() => undefined);
+        })
+      );
     }
   }
 
-  async stream(mediaId: string, res: Response, userId?: string, token?: string, range?: string) {
+  async stream(
+    mediaId: string,
+    res: Response,
+    userId?: string,
+    token?: string,
+    range?: string,
+    options: { download?: boolean; thumbnail?: boolean; requireAccess?: boolean } = {}
+  ) {
     const media = await this.repository.findById(mediaId);
     if (!media || media.status === "deleted") throw new NotFoundError("Media not found");
+
+    const shouldValidateAccess = options.requireAccess !== false;
     const publicOrOwner = media.visibility === "public" || String(media.uploadedBy) === userId;
-    if (!publicOrOwner && !verifySignedToken(mediaId, token)) {
+    if (shouldValidateAccess && !publicOrOwner && !verifySignedToken(mediaId, token)) {
       throw new ForbiddenError("Media is private");
     }
 
-    const credentials = media.workspaceId
-      ? await this.workspaceService.getCredentialsById(String(media.workspaceId))
-      : undefined;
-    const storage = credentials ? new TelegramStorageProvider(credentials.botToken, credentials.channelId) : this.storage;
-    const providerStream = await storage.streamFile(media.providerFileId, range);
+    if (!media.workspaceId) throw new AppError("Media is missing workspace credentials.", 500, "WORKSPACE_REQUIRED");
+    const credentials = await this.workspaceService.getCredentialsById(String(media.workspaceId));
+    const storage = new TelegramStorageProvider(credentials.botToken, credentials.channelId);
+    const target = options.thumbnail && media.thumbnail?.providerFileId
+      ? {
+          providerFileId: media.thumbnail.providerFileId,
+          mimeType: media.thumbnail.mimeType ?? "image/jpeg"
+        }
+      : {
+          providerFileId: media.providerFileId,
+          mimeType: media.mimeType
+        };
+
     const etag = `"${media.checksum}"`;
     res.setHeader("ETag", etag);
-    res.setHeader("Cache-Control", media.visibility === "public" ? "public, max-age=31536000, immutable" : "private, max-age=60");
+    res.setHeader("Cache-Control", options.thumbnail ? "public, max-age=3600" : "private, max-age=60");
     res.setHeader("Accept-Ranges", "bytes");
-    if (providerStream.contentType) res.setHeader("Content-Type", providerStream.contentType);
-    if (providerStream.contentLength) res.setHeader("Content-Length", providerStream.contentLength);
-    if (providerStream.contentRange) res.setHeader("Content-Range", providerStream.contentRange);
-    if (range) res.status(providerStream.statusCode === 206 ? 206 : 200);
-    providerStream.stream.pipe(res);
+    res.setHeader("Content-Type", target.mimeType);
+    res.setHeader("Content-Disposition", `${options.download ? "attachment" : "inline"}; filename="${encodeURIComponent(media.originalName)}"`);
+
+    if (options.thumbnail) {
+      const cachePath = await this.ensureCached(mediaId, target.providerFileId, storage, "thumb");
+      await this.pipeCachedFile(cachePath, target.mimeType, res, range);
+      return;
+    }
+
+    await this.pipeProviderStream(storage, target.providerFileId, target.mimeType, res, range);
   }
 
   async thumbnail(mediaId: string, res: Response, userId?: string, token?: string) {
-    const media = await this.repository.findById(mediaId);
-    if (!media?.thumbnail?.providerFileId) throw new NotFoundError("Thumbnail not found");
-    if (media.visibility !== "public" && String(media.uploadedBy) !== userId && !verifySignedToken(mediaId, token)) {
-      throw new ForbiddenError("Media is private");
-    }
-    const credentials = media.workspaceId
-      ? await this.workspaceService.getCredentialsById(String(media.workspaceId))
-      : undefined;
-    const storage = credentials ? new TelegramStorageProvider(credentials.botToken, credentials.channelId) : this.storage;
-    const providerStream = await storage.streamFile(media.thumbnail.providerFileId);
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    res.setHeader("Content-Type", providerStream.contentType ?? "image/webp");
-    providerStream.stream.pipe(res);
+    return this.stream(mediaId, res, userId, token, undefined, { thumbnail: true });
   }
 
   async delete(mediaId: string, userId: string, role: string) {
     const media = await this.repository.findById(mediaId);
     if (!media) throw new NotFoundError("Media not found");
     if (String(media.uploadedBy) !== userId && role !== "admin") throw new ForbiddenError();
-    await this.storage.deleteFile(media.providerFileId, media.providerMessageId ?? undefined);
-    await this.repository.markDeleted(mediaId);
+    const workspaceId = media.workspaceId ? String(media.workspaceId) : undefined;
+    if (workspaceId) {
+      const credentials = await this.workspaceService.getCredentialsById(String(media.workspaceId));
+      const storage = new TelegramStorageProvider(credentials.botToken, credentials.channelId);
+      const messageIds = new Set<string>();
+      if (media.providerMessageId) messageIds.add(String(media.providerMessageId));
+      if (media.thumbnail?.providerMessageId) messageIds.add(String(media.thumbnail.providerMessageId));
+      for (const variant of media.variants ?? []) {
+        if (variant.providerMessageId) messageIds.add(String(variant.providerMessageId));
+      }
+
+      await Promise.all([...messageIds].map((messageId) => storage.deleteFile(media.providerFileId, messageId)));
+    }
+    await this.repository.deleteById(mediaId);
+    if (workspaceId) await this.syncWorkspaceUsage(workspaceId);
+    await fs.rm(path.join(env.LOCAL_CACHE_DIR, mediaId), { recursive: true, force: true }).catch(() => undefined);
   }
 
   async bulkDelete(ids: string[], userId: string, role: string) {
@@ -167,15 +257,187 @@ export class MediaService {
   }
 
   async recentUploads(userId: string) {
-    return this.repository.recent(userId);
+    const media = await this.repository.recent(userId);
+    return media.map((item) => {
+      const object = item.toObject();
+      const token = createSignedToken(item.id);
+      return {
+        ...object,
+        viewUrl: `/media/${item.id}/view?token=${token}`,
+        downloadUrl: `/media/${item.id}/download?token=${token}`,
+        thumbUrl: `/media/${item.id}/thumb?token=${token}`
+      };
+    });
+  }
+
+  async move(mediaId: string, userId: string, folderId?: string | null) {
+    const media = await this.repository.updateOrganization(mediaId, userId, { folderId: folderId || null });
+    if (!media) throw new NotFoundError("Media not found");
+    return media;
+  }
+
+  async rename(mediaId: string, userId: string, originalName: string) {
+    const name = originalName.trim();
+    if (!name) throw new AppError("Filename is required.", 400, "FILENAME_REQUIRED");
+    const media = await this.repository.updateOrganization(mediaId, userId, { originalName: name });
+    if (!media) throw new NotFoundError("Media not found");
+    return media;
+  }
+
+  async listForWorkspace(workspaceId: string, options: { folderId?: string; limit?: number } = {}) {
+    return this.repository.listForWorkspace(workspaceId, options);
+  }
+
+  async findForWorkspace(mediaId: string, workspaceId: string) {
+    const media = await this.repository.findByIdForWorkspace(mediaId, workspaceId);
+    if (!media) throw new NotFoundError("Media not found");
+    return media;
   }
 
   private toResponse(mediaId: string, duplicate: boolean) {
+    const token = createSignedToken(mediaId);
     return {
       id: mediaId,
       duplicate,
       url: `/media/${mediaId}`,
-      signedUrl: `/media/${mediaId}?token=${createSignedToken(mediaId)}`
+      signedUrl: `/media/${mediaId}/view?token=${token}`,
+      viewUrl: `/media/${mediaId}/view?token=${token}`,
+      downloadUrl: `/media/${mediaId}/download?token=${token}`,
+      thumbUrl: `/media/${mediaId}/thumb?token=${token}`
     };
+  }
+
+  private cachePath(mediaId: string, providerFileId: string, variant: string) {
+    const safeProviderId = providerFileId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    return path.join(env.LOCAL_CACHE_DIR, mediaId, `${variant}-${safeProviderId}`);
+  }
+
+  private async materializeUpload(file: Express.Multer.File) {
+    await fs.mkdir(env.UPLOAD_TMP_DIR, { recursive: true });
+    if (file.path) {
+      try {
+        await fs.access(file.path);
+        trackTempFile(file.path);
+        return file.path;
+      } catch {
+        throw new AppError("Upload temp file was not available. Please retry the upload.", 400, "UPLOAD_TEMP_FILE_MISSING");
+      }
+    }
+
+    if (!file.buffer?.length) {
+      throw new AppError("Uploaded file is empty or unavailable. Please retry.", 400, "UPLOAD_FILE_UNAVAILABLE");
+    }
+
+    const safeName = file.originalname.replace(/[\\/]+/g, "-");
+    const target = path.join(env.UPLOAD_TMP_DIR, `${Date.now()}-${nanoid()}-${safeName}`);
+    trackTempFile(target);
+    try {
+      await fs.writeFile(target, file.buffer);
+      return target;
+    } catch (error) {
+      untrackTempFile(target);
+      await fs.rm(target, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async syncWorkspaceUsage(workspaceId: string) {
+    const [stats] = await this.repository.workspaceStats(workspaceId);
+    await WorkspaceModel.findByIdAndUpdate(workspaceId, {
+      storageUsed: stats?.storageUsed ?? 0,
+      uploadCount: stats?.uploadCount ?? 0,
+      imageCount: stats?.imageCount ?? 0,
+      videoCount: stats?.videoCount ?? 0
+    });
+  }
+
+  private async ensureCached(mediaId: string, providerFileId: string, storage: TelegramStorageProvider, variant: string) {
+    const target = this.cachePath(mediaId, providerFileId, variant);
+    try {
+      const stat = await fs.stat(target);
+      const ageMs = Date.now() - stat.mtimeMs;
+      if (ageMs > env.CACHE_TTL_SECONDS * 1000) {
+        await fs.rm(target, { force: true });
+        throw new Error("cache expired");
+      }
+      return target;
+    } catch {
+      // Cache miss.
+    }
+
+    const lockKey = `${mediaId}:${variant}:${providerFileId}`;
+    const active = cacheLocks.get(lockKey);
+    if (active) return active;
+
+    const promise = (async () => {
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      const tempPath = `${target}.tmp-${Date.now()}`;
+      const providerStream = await storage.streamFile(providerFileId);
+      await pipeline(providerStream.stream, createWriteStream(tempPath));
+      await fs.rename(tempPath, target);
+      return target;
+    })().finally(() => cacheLocks.delete(lockKey));
+
+    cacheLocks.set(lockKey, promise);
+    return promise;
+  }
+
+  private async pipeProviderStream(
+    storage: TelegramStorageProvider,
+    providerFileId: string,
+    contentType: string,
+    res: Response,
+    range?: string
+  ) {
+    const providerStream = await storage.streamFile(providerFileId, range);
+    if (providerStream.statusCode) res.status(providerStream.statusCode === 206 ? 206 : 200);
+    if (providerStream.contentType) res.setHeader("Content-Type", contentType || providerStream.contentType);
+    if (providerStream.contentLength) res.setHeader("Content-Length", providerStream.contentLength);
+    if (providerStream.contentRange) res.setHeader("Content-Range", providerStream.contentRange);
+
+    const onClose = () => providerStream.stream.destroy();
+    res.once("close", onClose);
+    try {
+      await pipeline(providerStream.stream, res);
+    } catch (error) {
+      if (!res.destroyed) {
+        logger.error("Telegram proxy stream failed", {
+          providerFileId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    } finally {
+      res.off("close", onClose);
+    }
+  }
+
+  private async pipeCachedFile(filePath: string, contentType: string, res: Response, range?: string) {
+    const stat = await fs.stat(filePath);
+    if (!range) {
+      res.status(200);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Length", stat.size);
+      await pipeline(createReadStream(filePath), res);
+      return;
+    }
+
+    const match = /bytes=(\d*)-(\d*)/.exec(range);
+    if (!match) {
+      res.status(416).setHeader("Content-Range", `bytes */${stat.size}`).send();
+      return;
+    }
+
+    const start = match[1] ? Number(match[1]) : 0;
+    const end = match[2] ? Number(match[2]) : stat.size - 1;
+    if (start >= stat.size || end >= stat.size || start > end) {
+      res.status(416).setHeader("Content-Range", `bytes */${stat.size}`).send();
+      return;
+    }
+
+    res.status(206);
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Length", end - start + 1);
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${stat.size}`);
+    await pipeline(createReadStream(filePath, { start, end }), res);
   }
 }

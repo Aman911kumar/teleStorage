@@ -74,3 +74,12 @@ button {
 .animate-shake {
   animation: shake 0.38s ease-in-out;
 }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.4s ease-in-out infinite;
+}

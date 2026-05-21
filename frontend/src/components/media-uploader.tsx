@@ -45,7 +45,7 @@ export function MediaUploader() {
   }
 
   async function startUpload(item: QueueItem) {
-    if (activeId || item.status === "uploading" || item.status === "success") return;
+    if (activeId || controllers.current.has(item.id) || item.status === "uploading" || item.status === "success") return;
     if (!workspaceId) {
       toast.error("Select a Telegram workspace first");
       return;
@@ -55,13 +55,13 @@ export function MediaUploader() {
     setActiveId(item.id);
     setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "uploading", progress: 1 } : q));
     try {
-      await uploadMedia(item.file, workspaceId, (progress) => {
+      const result = await uploadMedia(item.file, workspaceId, (progress) => {
         if (controller.signal.aborted) return;
         setQueue((current) => current.map((q) => q.id === item.id ? { ...q, progress, speed: `${progress}% uploaded` } : q));
       }, controller.signal);
       if (controller.signal.aborted) return;
       setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "success", progress: 100 } : q));
-      toast.success("Media uploaded successfully");
+      toast.success(result.duplicate ? "This file already exists in your workspace." : "Media uploaded successfully");
       setTimeout(() => remove(item.id), 2500);
       queryClient.invalidateQueries({ queryKey: ["media"] });
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
@@ -112,7 +112,7 @@ export function MediaUploader() {
         <UploadCloud className="mb-3 text-accent" />
         <span className="text-sm font-medium text-white">Drop media or browse</span>
         <span className="mt-1 text-xs text-muted">Images, videos, PDFs and documents</span>
-        <input className="sr-only" type="file" multiple onChange={(event) => enqueue(event.target.files)} />
+        <input className="sr-only" type="file" multiple disabled={activeId !== null} onChange={(event) => { enqueue(event.target.files); event.currentTarget.value = ""; }} />
       </label>
 
       <div className="mt-4 space-y-3">

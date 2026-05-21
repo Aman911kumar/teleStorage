@@ -4,9 +4,11 @@ import { connectDatabase } from "./config/database.js";
 import { closeRedisConnection } from "./config/redis.js";
 import { createApp } from "./app.js";
 import { logger } from "./utils/logger.js";
+import { startStorageCleanup } from "./utils/storageCleanup.js";
 
 async function bootstrap() {
   await connectDatabase();
+  const stopStorageCleanup = startStorageCleanup();
   const app = createApp();
   const server = http.createServer(app);
 
@@ -16,6 +18,7 @@ async function bootstrap() {
 
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}, shutting down`);
+    stopStorageCleanup();
     server.close(async () => {
       await closeRedisConnection();
       process.exit(0);

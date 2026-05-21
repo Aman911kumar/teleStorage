@@ -16,7 +16,7 @@ type TelegramRequestOptions = RequestInit & {
   retries?: number;
 };
 
-function sanitizeUrl(url: string) {
+export function sanitizeUrl(url: string) {
   return url.replace(/bot[^/]+/g, "bot<redacted>");
 }
 

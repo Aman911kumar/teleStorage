@@ -7,3 +7,31 @@ export const apiRateLimit = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false
 });
+
+export const uploadRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: "UPLOAD_RATE_LIMITED",
+      message: "Too many uploads. Please slow down and retry."
+    }
+  }
+});
+
+export const streamRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 600,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: "STREAM_RATE_LIMITED",
+      message: "Too many media requests. Please slow down and retry."
+    }
+  }
+});

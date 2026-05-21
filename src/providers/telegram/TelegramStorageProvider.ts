@@ -1,19 +1,25 @@
 import fs from "node:fs";
 import { Readable } from "node:stream";
 import FormData from "form-data";
-import { env } from "../../config/env.js";
 import { AppError } from "../../core/errors.js";
+import { logger } from "../../utils/logger.js";
 import type { StorageProvider, StorageStream, UploadInput, UploadResult } from "../storage.types.js";
 import { telegramFetchStream, telegramMultipartRequest, telegramRequest } from "./telegramRequest.js";
+
+type TelegramFilePayload = { file_id: string; file_size?: number };
 
 type TelegramSendResponse = {
   ok: boolean;
   result?: {
     message_id: number;
-    photo?: Array<{ file_id: string; file_size?: number }>;
-    video?: { file_id: string; file_size?: number };
-    document?: { file_id: string; file_size?: number };
-    audio?: { file_id: string; file_size?: number };
+    photo?: TelegramFilePayload[];
+    video?: TelegramFilePayload;
+    document?: TelegramFilePayload;
+    audio?: TelegramFilePayload;
+    animation?: TelegramFilePayload;
+    voice?: TelegramFilePayload;
+    video_note?: TelegramFilePayload;
+    sticker?: TelegramFilePayload;
   };
   description?: string;
 };
@@ -24,13 +30,22 @@ type TelegramGetFileResponse = {
   description?: string;
 };
 
+type TelegramDeleteResponse = {
+  ok: boolean;
+  result?: boolean;
+  description?: string;
+};
+
 export class TelegramStorageProvider implements StorageProvider {
   name = "telegram" as const;
   private apiBase: string;
   private channelId: string;
   private botToken: string;
 
-  constructor(botToken = env.TELEGRAM_BOT_TOKEN, channelId = env.TELEGRAM_CHANNEL_ID) {
+  constructor(botToken?: string, channelId?: string) {
+    if (!botToken || !channelId) {
+      throw new AppError("Telegram workspace credentials are required.", 500, "TELEGRAM_CREDENTIALS_REQUIRED");
+    }
     this.botToken = botToken;
     this.apiBase = `https://api.telegram.org/bot${botToken}`;
     this.channelId = channelId;
@@ -53,13 +68,14 @@ export class TelegramStorageProvider implements StorageProvider {
       throw new AppError(body.description ?? "Telegram upload failed", 502, "TELEGRAM_UPLOAD_FAILED");
     }
 
-    const file =
-      body.result.video ??
-      body.result.audio ??
-      body.result.document ??
-      body.result.photo?.[body.result.photo.length - 1];
+    const file = this.extractTelegramFile(body.result, method);
 
     if (!file?.file_id) {
+      logger.error("Telegram upload response did not include expected file_id", {
+        method,
+        responseKeys: Object.keys(body.result),
+        messageId: body.result.message_id
+      });
       throw new AppError("Telegram upload succeeded but file processing failed.", 502, "TELEGRAM_FILE_ID_MISSING");
     }
 
@@ -71,8 +87,28 @@ export class TelegramStorageProvider implements StorageProvider {
     };
   }
 
-  async deleteFile(_providerFileId: string, _providerMessageId?: string): Promise<void> {
-    // Telegram bots cannot delete by file_id. If providerMessageId is present, deleteMessage can be added safely.
+  async deleteFile(_providerFileId: string, providerMessageId?: string): Promise<void> {
+    if (!providerMessageId) {
+      throw new AppError("Telegram message id is required for deletion.", 500, "TELEGRAM_MESSAGE_ID_REQUIRED");
+    }
+
+    const messageId = Number(providerMessageId);
+    if (!Number.isInteger(messageId)) {
+      throw new AppError("Telegram message id is invalid.", 500, "TELEGRAM_MESSAGE_ID_INVALID");
+    }
+
+    const body = await telegramRequest<TelegramDeleteResponse["result"]>(`${this.apiBase}/deleteMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: this.channelId,
+        message_id: messageId
+      })
+    });
+
+    if (!body.ok || body.result !== true) {
+      throw new AppError(body.description ?? "Telegram delete failed.", 502, "TELEGRAM_DELETE_FAILED");
+    }
   }
 
   async getFileUrl(providerFileId: string): Promise<string> {
@@ -99,10 +135,26 @@ export class TelegramStorageProvider implements StorageProvider {
   }
 
   private resolveMethod(input: UploadInput) {
-    if (input.kind === "image" && input.mimeType !== "image/gif") return "sendPhoto";
-    if (input.kind === "video") return "sendVideo";
-    if (input.kind === "audio") return "sendAudio";
+    if (input.mimeType.startsWith("image/") && input.mimeType !== "image/gif") return "sendPhoto";
+    if (input.mimeType.startsWith("video/")) return "sendVideo";
+    if (input.mimeType.startsWith("audio/")) return "sendAudio";
     return "sendDocument";
+  }
+
+  private extractTelegramFile(result: NonNullable<TelegramSendResponse["result"]>, method: string) {
+    if (method === "sendPhoto") return result.photo?.[result.photo.length - 1];
+    if (method === "sendVideo") return result.video;
+    if (method === "sendAudio") return result.audio;
+    return (
+      result.document ??
+      result.animation ??
+      result.voice ??
+      result.video_note ??
+      result.sticker ??
+      result.photo?.[result.photo.length - 1] ??
+      result.video ??
+      result.audio
+    );
   }
 
   private async getTelegramFile(providerFileId: string) {
@@ -110,6 +162,10 @@ export class TelegramStorageProvider implements StorageProvider {
       `${this.apiBase}/getFile?file_id=${encodeURIComponent(providerFileId)}`
     );
     if (!body.ok || !body.result?.file_path) {
+      logger.error("Telegram getFile response missing file_path", {
+        fileId: providerFileId,
+        rawResponse: body
+      });
       throw new AppError(body.description ?? "Telegram getFile failed", 502, "TELEGRAM_GET_FILE_FAILED");
     }
     return body.result;

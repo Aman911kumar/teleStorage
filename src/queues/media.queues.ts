@@ -14,7 +14,6 @@ export const failedRetryQueue = connection ? new Queue("failed-retry-uploads", {
 
 export async function enqueueImageProcessing(data: unknown) {
   if (!imageProcessingQueue) {
-    logger.debug("memory queue: image processing placeholder", { data });
     return;
   }
   await imageProcessingQueue.add("process-image", data, { attempts: 3 });
@@ -23,7 +22,7 @@ export async function enqueueImageProcessing(data: unknown) {
 export async function enqueueVideoTranscoding(data: unknown) {
   if (!videoTranscodingQueue) {
     setImmediate(() => {
-      processVideoTranscoding(data as { mediaId: string; sourcePath: string }).catch((error) =>
+      processVideoTranscoding(data as { mediaId: string; sourcePath: string; workspaceId: string }).catch((error) =>
         logger.error("memory video transcoding failed", { error })
       );
     });
@@ -34,7 +33,6 @@ export async function enqueueVideoTranscoding(data: unknown) {
 
 export async function enqueueThumbnail(data: unknown) {
   if (!thumbnailQueue) {
-    logger.debug("memory queue: thumbnail job is handled by video transcoding", { data });
     return;
   }
   await thumbnailQueue.add("generate-thumbnail", data, { attempts: 3 });
