@@ -51,7 +51,7 @@ export function DashboardLayout() {
   const crumbs = location.pathname.split("/").filter(Boolean);
 
   return (
-    <div className="min-h-screen overflow-x-hidden pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[272px_1fr] lg:pb-0">
+    <div className="min-h-screen w-full overflow-x-hidden pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:pb-0">
       {sidebarOpen && <button aria-label="Close sidebar overlay" className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} />}
       <aside className={cn("fixed inset-y-0 left-0 z-50 w-[min(86vw,288px)] overflow-y-auto border-r border-border/80 bg-[#080b11]/95 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl backdrop-blur-xl transition duration-300 lg:sticky lg:top-0 lg:block lg:w-auto lg:shadow-none", sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
         <div className="mb-5 flex h-12 items-center justify-between">
@@ -94,9 +94,9 @@ export function DashboardLayout() {
           ))}
         </nav>
       </aside>
-      <div className="min-w-0">
+      <div className="min-w-0 w-full">
         <header className="sticky top-0 z-30 border-b border-border/80 bg-[#080b11]/82 backdrop-blur-xl">
-          <div className="flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6 lg:px-8">
+          <div className="flex h-14 min-w-0 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6 lg:px-8">
             <button className="focus-ring rounded-md p-2 text-muted transition hover:bg-white/5 hover:text-white lg:hidden" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button>
             <div className="hidden min-w-0 text-sm text-muted sm:block">
               <span className="text-slate-500">/</span> {crumbs.join(" / ") || "dashboard"}
@@ -117,7 +117,7 @@ export function DashboardLayout() {
               <FileUp size={15} /> Upload
             </Button>
             <Button variant="ghost" size="icon" className="hidden sm:inline-flex" aria-label="Notifications"><Bell size={18} /></Button>
-            <div className="ml-auto flex h-10 items-center overflow-hidden rounded-md border border-border bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:ml-0">
+            <div className="ml-auto flex h-10 shrink-0 items-center overflow-hidden rounded-md border border-border bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:ml-0">
               <Link to="/app/profile" className="flex h-full items-center gap-2 px-2.5 text-sm text-white transition hover:bg-white/5.5">
                 <span className="grid h-6 w-6 place-items-center rounded bg-accent/15 text-xs text-accent">{(user?.name ?? "U").slice(0, 1).toUpperCase()}</span>
                 <span className="hidden max-w-28 truncate sm:block">{user?.name ?? "User"}</span>

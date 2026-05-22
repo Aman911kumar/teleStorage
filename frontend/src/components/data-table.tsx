@@ -19,21 +19,22 @@ export function DataTable({ rows }: { rows: Row[] }) {
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white/2.5">
-      <div className="flex items-center gap-2 border-b border-border bg-white/2.5 p-3">
+      <div className="flex items-center gap-2 border-b border-border bg-white/2.5 p-2 sm:p-3">
         <Search size={16} className="text-muted" />
         <Input className="h-11 border-0 bg-transparent text-base sm:h-9 sm:text-sm" placeholder="Search table" value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
-      <div className="space-y-2 p-3 sm:hidden">
+      <div className="space-y-2 p-2 sm:hidden">
         {filtered.map((row, index) => (
           <div key={index} className="rounded-md border border-border bg-[#090c13] p-3">
             {keys.map((key) => (
-              <div key={key} className="flex items-start justify-between gap-3 py-1.5 text-sm">
-                <span className="capitalize text-muted">{key}</span>
-                <span className="max-w-[62%] break-words text-right text-slate-200">{row[key]}</span>
+              <div key={key} className="grid gap-1 py-1.5 text-sm">
+                <span className="text-xs capitalize text-muted">{key}</span>
+                <span className="break-words text-slate-200">{row[key]}</span>
               </div>
             ))}
           </div>
         ))}
+        {!filtered.length && <p className="py-6 text-center text-sm text-muted">No rows found.</p>}
       </div>
       <div className="thin-scrollbar hidden max-h-105 overflow-auto sm:block">
         <table className="w-full min-w-155 text-left text-sm">
