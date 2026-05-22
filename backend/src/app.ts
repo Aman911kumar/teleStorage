@@ -15,18 +15,24 @@ import { userRouter } from "./modules/users/user.routes.js";
 import { apiRateLimit } from "./middlewares/rateLimit.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 
+function publicMediaHeaders(_req: express.Request, res: express.Response, next: express.NextFunction) {
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader("Timing-Allow-Origin", "*");
+  next();
+}
+
 export function createApp() {
   const app = express();
   app.set("trust proxy", 1);
   app.use(
     helmet({
-      crossOriginResourcePolicy: { policy: "cross-origin" }
+      crossOriginResourcePolicy: false
     })
   );
   app.use("/api/v1", cors(apiCors));
-  app.use("/media", cors(mediaCors));
-  app.use("/preview", cors(mediaCors));
-  app.use("/stream", cors(mediaCors));
+  app.use("/media", publicMediaHeaders, cors(mediaCors));
+  app.use("/preview", publicMediaHeaders, cors(mediaCors));
+  app.use("/stream", publicMediaHeaders, cors(mediaCors));
   app.use(
     [
       "/api/auth",
