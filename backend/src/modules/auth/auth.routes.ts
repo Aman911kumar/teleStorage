@@ -87,8 +87,16 @@ function sendSession(res: Response, session: Awaited<ReturnType<AuthService["log
   res.json({ success: true, data: { token: session.accessToken, accessToken: session.accessToken, user: session.user } });
 }
 
+function requestOrigin(req: AuthenticatedRequest) {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get("host");
+  return `${protocol}://${host}`;
+}
+
 function googleCallbackUrl(req: AuthenticatedRequest) {
-  return env.GOOGLE_CALLBACK_URL ?? `${env.APP_BASE_URL ?? `${req.protocol}://${req.get("host")}`}/api/auth/google/callback`;
+  return env.GOOGLE_CALLBACK_URL ?? `${requestOrigin(req)}/api/auth/google/callback`;
 }
 
 function safeAbsoluteUrl(value?: string) {

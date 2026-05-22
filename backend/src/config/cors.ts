@@ -4,7 +4,6 @@ import { AppError } from "../core/errors.js";
 
 export const allowedOrigins = [
   ...new Set([
-    env.APP_BASE_URL,
     env.FRONTEND_APP_URL,
     ...env.CORS_ORIGINS.split(",")
       .map((origin) => origin.trim())
