@@ -242,6 +242,20 @@ export type Analytics = {
   activity: unknown[];
 };
 
+function normalizeMediaUrl(value?: string) {
+  if (!value || value.startsWith("http")) return value;
+  return `${getApiBaseUrl()}${value.startsWith("/") ? value : `/${value}`}`;
+}
+
+function normalizeMediaItem<T extends MediaItem>(item: T): T {
+  return {
+    ...item,
+    viewUrl: normalizeMediaUrl(item.viewUrl),
+    thumbUrl: normalizeMediaUrl(item.thumbUrl),
+    downloadUrl: normalizeMediaUrl(item.downloadUrl)
+  };
+}
+
 export async function uploadMedia(file: File, workspaceId?: string, onProgress?: (value: number, loaded?: number, total?: number) => void, signal?: AbortSignal, options?: { folderId?: string; tags?: string[]; visibility?: "public" | "private"; metadata?: Record<string, string> }) {
   const form = new FormData();
   form.append("file", file);
@@ -307,12 +321,12 @@ export async function validateWorkspace(input: { telegramBotToken: string; teleg
 
 export async function getMedia(options?: { includeDeleted?: boolean }) {
   const { data } = await api.get("/api/media", { params: { includeDeleted: options?.includeDeleted || undefined } });
-  return data.data as MediaItem[];
+  return (data.data as MediaItem[]).map(normalizeMediaItem);
 }
 
 export async function updateMedia(id: string, input: { folderId?: string | null; originalName?: string }) {
   const { data } = await api.patch(`/api/media/${id}`, input);
-  return data.data as MediaItem;
+  return normalizeMediaItem(data.data as MediaItem);
 }
 
 export async function deleteMedia(id: string) {
@@ -321,7 +335,7 @@ export async function deleteMedia(id: string) {
 
 export async function restoreMedia(id: string) {
   const { data } = await api.patch(`/api/media/${id}/restore`);
-  return data.data as MediaItem;
+  return normalizeMediaItem(data.data as MediaItem);
 }
 
 export async function bulkRestoreMedia(ids: string[]) {
