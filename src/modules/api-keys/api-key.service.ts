@@ -60,6 +60,16 @@ export class ApiKeyService {
     return this.safe(key);
   }
 
+  async deletePermanently(owner: string, id: string) {
+    const key = await ApiKeyModel.findOne({ _id: id, owner }).lean();
+    if (!key) throw new NotFoundError("API key not found");
+    if (key.status !== "revoked") {
+      throw new AppError("Revoke this API key before deleting it permanently.", 409, "API_KEY_NOT_REVOKED");
+    }
+
+    await ApiKeyModel.deleteOne({ _id: id, owner });
+  }
+
   async regenerate(owner: string, id: string) {
     const secret = generateSecret();
     const key = await ApiKeyModel.findOneAndUpdate(

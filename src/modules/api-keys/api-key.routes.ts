@@ -42,6 +42,15 @@ apiKeyRouter.post(
 );
 
 apiKeyRouter.delete(
+  "/api/api-keys/:id/permanent",
+  requireAuth,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    await service.deletePermanently(req.user!.id, req.params.id);
+    res.status(204).send();
+  })
+);
+
+apiKeyRouter.delete(
   "/api/api-keys/:id",
   requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {

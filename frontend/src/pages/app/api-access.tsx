@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PageLoading } from "@/components/page-loading";
 import {
   createApiKey,
+  deleteApiKeyPermanently,
   getApiKeys,
   getApiRequestLogs,
   getWorkspaces,
@@ -103,15 +104,19 @@ function KeyCard({
   secret,
   onRegenerate,
   onRevoke,
+  onDeletePermanently,
   isRegenerating,
-  isRevoking
+  isRevoking,
+  isDeletingPermanently
 }: {
   apiKey: ApiKey;
   secret?: string;
   onRegenerate: () => void;
   onRevoke: () => void;
+  onDeletePermanently: () => void;
   isRegenerating: boolean;
   isRevoking: boolean;
+  isDeletingPermanently: boolean;
 }) {
   return (
     <Card className="p-5">
@@ -127,12 +132,20 @@ function KeyCard({
           <p className="mt-2 text-xs text-muted">Last used {apiKey.lastUsedAt ? new Date(apiKey.lastUsedAt).toLocaleString() : "never"}</p>
         </div>
         <div className="flex gap-2">
-          <LoadingButton variant="secondary" size="sm" loading={isRegenerating} loadingText="Regenerating" onClick={onRegenerate} disabled={apiKey.status !== "active"}>
-            <RefreshCw size={14} /> Regenerate
-          </LoadingButton>
-          <LoadingButton variant="secondary" size="sm" loading={isRevoking} loadingText="Revoking" onClick={onRevoke} disabled={apiKey.status !== "active"}>
-            <Trash2 size={14} className="text-red-300" /> Revoke
-          </LoadingButton>
+          {apiKey.status === "active" ? (
+            <>
+              <LoadingButton variant="secondary" size="sm" loading={isRegenerating} loadingText="Regenerating" onClick={onRegenerate}>
+                <RefreshCw size={14} /> Regenerate
+              </LoadingButton>
+              <LoadingButton variant="secondary" size="sm" loading={isRevoking} loadingText="Revoking" onClick={onRevoke}>
+                <Trash2 size={14} className="text-red-300" /> Revoke
+              </LoadingButton>
+            </>
+          ) : (
+            <LoadingButton variant="destructive" size="sm" loading={isDeletingPermanently} loadingText="Deleting" onClick={onDeletePermanently}>
+              <Trash2 size={14} /> Delete permanently
+            </LoadingButton>
+          )}
         </div>
       </div>
 
@@ -212,6 +225,15 @@ export default function ApiAccess() {
       await queryClient.invalidateQueries({ queryKey: ["api-keys", activeWorkspaceId] });
     },
     onError: (error) => notifyError(error, "Unable to revoke API key.")
+  });
+
+  const deletePermanentlyMutation = useMutation({
+    mutationFn: deleteApiKeyPermanently,
+    onSuccess: async () => {
+      toast.success("API key deleted permanently.");
+      await queryClient.invalidateQueries({ queryKey: ["api-keys", activeWorkspaceId] });
+    },
+    onError: (error) => notifyError(error, "Unable to delete API key.")
   });
 
   const primaryKey = keysQuery.data?.find((apiKey) => apiKey.status === "active") ?? keysQuery.data?.[0];
@@ -317,8 +339,14 @@ export default function ApiAccess() {
                     secret={freshSecrets[apiKey._id]}
                     onRegenerate={() => regenerateMutation.mutate(apiKey._id)}
                     onRevoke={() => revokeMutation.mutate(apiKey._id)}
+                    onDeletePermanently={() => {
+                      if (window.confirm("Delete this revoked API key permanently? This cannot be undone.")) {
+                        deletePermanentlyMutation.mutate(apiKey._id);
+                      }
+                    }}
                     isRegenerating={regenerateMutation.isPending}
                     isRevoking={revokeMutation.isPending}
+                    isDeletingPermanently={deletePermanentlyMutation.isPending}
                   />
                 ))
               ) : (

@@ -289,6 +289,19 @@ export class MediaService {
     return this.repository.deleteMany(ids, role === "admin" ? undefined : userId);
   }
 
+  async restore(mediaId: string, userId: string) {
+    const media = await this.repository.restoreById(mediaId, userId);
+    if (!media) throw new NotFoundError("Media not found");
+    if (media.workspaceId) await this.syncWorkspaceUsage(String(media.workspaceId));
+    return media;
+  }
+
+  async bulkRestore(ids: string[], userId: string) {
+    const result = await this.repository.restoreMany(ids, userId);
+    const restored = result.modifiedCount ?? 0;
+    return { restored };
+  }
+
   async analytics() {
     return this.repository.analytics();
   }

@@ -227,6 +227,16 @@ export async function deleteMedia(id: string) {
   await api.delete(`/api/media/${id}`);
 }
 
+export async function restoreMedia(id: string) {
+  const { data } = await api.patch(`/api/media/${id}/restore`);
+  return data.data as MediaItem;
+}
+
+export async function bulkRestoreMedia(ids: string[]) {
+  const { data } = await api.post("/media/bulk-restore", { ids });
+  return data.data as { restored: number };
+}
+
 export async function getFolders(workspaceId: string, parentId?: string) {
   const { data } = await api.get("/api/folders", { params: { workspaceId, parentId } });
   return data.data as FolderItem[];
@@ -269,6 +279,10 @@ export async function regenerateApiKey(id: string) {
 export async function revokeApiKey(id: string) {
   const { data } = await api.delete(`/api/api-keys/${id}`);
   return data.data as ApiKey;
+}
+
+export async function deleteApiKeyPermanently(id: string) {
+  await api.delete(`/api/api-keys/${id}/permanent`);
 }
 
 export async function getApiRequestLogs(workspaceId?: string) {

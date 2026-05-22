@@ -2,6 +2,7 @@ import axios from "axios";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   ChevronRight,
   ChevronLeft,
@@ -21,6 +22,7 @@ import {
   MoreHorizontal,
   Pause,
   RefreshCw,
+  RotateCcw,
   Search,
   Star,
   Trash2,
@@ -39,6 +41,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { PageLoading } from "@/components/page-loading";
 import {
   createFolder,
+  bulkRestoreMedia,
   deleteFolder,
   deleteMedia,
   ensureFolderPath,
@@ -47,6 +50,7 @@ import {
   getWorkspaces,
   notifyError,
   renameFolder,
+  restoreMedia,
   syncWorkspace,
   updateMedia,
   uploadMedia,
@@ -146,6 +150,7 @@ function uploadKey(file: File) {
 
 export default function Media() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const uploadRequestId = useUiStore((state) => state.uploadRequestId);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -299,6 +304,29 @@ export default function Media() {
     }
   });
 
+  const restoreMutation = useMutation({
+    mutationFn: restoreMedia,
+    onSuccess: async () => {
+      toast.success("Media restored");
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
+      await queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+    onError: (error) => notifyError(error, "Unable to restore media.")
+  });
+
+  const bulkRestoreMutation = useMutation({
+    mutationFn: bulkRestoreMedia,
+    onSuccess: async (result) => {
+      toast.success(`Restored ${result.restored} file${result.restored === 1 ? "" : "s"}`);
+      setSelected([]);
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
+      await queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+    onError: (error) => notifyError(error, "Unable to restore selected media.")
+  });
+
   const syncMutation = useMutation({
     mutationFn: syncWorkspace,
     onSuccess: async (result) => {
@@ -347,6 +375,13 @@ export default function Media() {
     setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
+  const requireWorkspace = useCallback(() => {
+    if (resolvedWorkspaceId) return true;
+    toast.error("Create a workspace before uploading.");
+    navigate("/app/workspaces");
+    return false;
+  }, [navigate, resolvedWorkspaceId]);
+
   function selectAllCurrent() {
     setSelected((current) => Array.from(new Set([...current, ...allCurrentFileIds])));
   }
@@ -357,6 +392,7 @@ export default function Media() {
   }
 
   const enqueue = useCallback((files?: FileList | null) => {
+    if (!requireWorkspace()) return;
     if (!files?.length) return;
     const existing = new Set(queueRef.current.map((item) => uploadKey(item.file)));
     const accepted: File[] = [];
@@ -403,7 +439,7 @@ export default function Media() {
     }
     setQueue((current) => [...incoming, ...current]);
     setUploadOpen(true);
-  }, []);
+  }, [requireWorkspace]);
 
   const removeUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
@@ -418,7 +454,7 @@ export default function Media() {
 
   const startUpload = useCallback(async (item: UploadItem) => {
     if (!resolvedWorkspaceId) {
-      toast.error("Create or select a workspace first");
+      requireWorkspace();
       return;
     }
     if (controllers.current.has(item.id) || inFlightUploads.current.has(item.id)) return;
@@ -471,7 +507,7 @@ export default function Media() {
       controllers.current.delete(item.id);
       inFlightUploads.current.delete(item.id);
     }
-  }, [activeFolder?._id, queryClient, removeUpload, resolvedWorkspaceId]);
+  }, [activeFolder?._id, queryClient, removeUpload, requireWorkspace, resolvedWorkspaceId]);
 
   const cancelUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
@@ -489,14 +525,25 @@ export default function Media() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!resolvedWorkspaceId) return;
-    const active = queue.filter((item) => item.status === "uploading" || item.status === "processing").length;
+  const startQueuedUploads = useCallback(() => {
+    if (!resolvedWorkspaceId) {
+      requireWorkspace();
+      return;
+    }
+    const active = queueRef.current.filter((item) => item.status === "uploading" || item.status === "processing").length;
     const slots = Math.max(MAX_CONCURRENT_UPLOADS - active, 0);
     if (!slots) return;
-    const next = queue.filter((item) => item.status === "queued").slice(0, slots);
-    next.forEach((item) => void startUpload(item));
-  }, [queue, resolvedWorkspaceId, startUpload]);
+    queueRef.current
+      .filter((item) => item.status === "queued")
+      .slice(0, slots)
+      .forEach((item) => void startUpload(item));
+  }, [requireWorkspace, resolvedWorkspaceId, startUpload]);
+
+  useEffect(() => {
+    if (!resolvedWorkspaceId || !queue.some((item) => item.status === "queued")) return;
+    const timer = window.setTimeout(startQueuedUploads, 50);
+    return () => window.clearTimeout(timer);
+  }, [queue, resolvedWorkspaceId, startQueuedUploads]);
 
   function copyUrl(item: MediaItem) {
     navigator.clipboard.writeText(resolveMediaUrl(item, "view"));
@@ -553,7 +600,7 @@ export default function Media() {
             </select>
             <LoadingButton variant="secondary" loading={syncMutation.isPending} loadingText="Syncing..." disabled={!resolvedWorkspaceId} onClick={() => resolvedWorkspaceId && syncMutation.mutate(resolvedWorkspaceId)}><RefreshCw size={16} /> Sync</LoadingButton>
             <Button variant="secondary" onClick={() => setNewFolderOpen(true)}><FolderPlus size={16} /> New Folder</Button>
-            <Button onClick={() => setUploadOpen(true)}><UploadCloud size={16} /> Upload</Button>
+            <Button onClick={() => requireWorkspace() && setUploadOpen(true)}><UploadCloud size={16} /> Upload</Button>
           </div>
         </div>
       </div>
@@ -604,8 +651,8 @@ export default function Media() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => uploadInputRef.current?.click()}><UploadCloud size={16} /> Choose files</Button>
-                    <Button variant="secondary" onClick={() => folderInputRef.current?.click()}><FolderPlus size={16} /> Upload folder</Button>
+                    <Button onClick={() => requireWorkspace() && uploadInputRef.current?.click()}><UploadCloud size={16} /> Choose files</Button>
+                    <Button variant="secondary" onClick={() => requireWorkspace() && folderInputRef.current?.click()}><FolderPlus size={16} /> Upload folder</Button>
                   </div>
                 </div>
                 <div className="mt-6 grid gap-3 sm:grid-cols-4">
@@ -659,6 +706,7 @@ export default function Media() {
                   <>
                     <span>{selectedItems.length} selected</span>
                     <Button variant="ghost" size="sm" onClick={deselectAllCurrent}>Clear</Button>
+                    {filter === "trash" && <LoadingButton variant="secondary" size="sm" loading={bulkRestoreMutation.isPending} loadingText="Restoring..." onClick={() => bulkRestoreMutation.mutate(selectedItems.map((item) => item._id))}><RotateCcw size={14} /> Restore selected</LoadingButton>}
                     <Button variant="destructive" size="sm" onClick={() => setBulkDeleteIds(selectedItems.map((item) => item._id))}><Trash2 size={14} /> Delete selected</Button>
                   </>
                 ) : <span>{currentFolders.length + currentFiles.length} items</span>}
@@ -669,7 +717,7 @@ export default function Media() {
           {mediaQuery.isLoading || foldersQuery.isLoading ? <PageLoading cards={6} /> : mediaQuery.isError ? (
             <EmptyState icon={File} title="Unable to load files" text="The explorer could not connect to your backend." action="Retry" onAction={() => mediaQuery.refetch()} />
           ) : !currentFolders.length && !currentFiles.length ? (
-            <EmptyState icon={Folder} title="This folder is empty" text="Upload files or create a folder to start organizing your media." action="Upload files" onAction={() => setUploadOpen(true)} />
+            <EmptyState icon={Folder} title="This folder is empty" text="Upload files or create a folder to start organizing your media." action="Upload files" onAction={() => requireWorkspace() && setUploadOpen(true)} />
           ) : view === "grid" ? (
             <motion.div layout className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
               {currentFolders.map((folder) => (
@@ -681,7 +729,7 @@ export default function Media() {
                   onDelete={() => setDeleteFolderTarget(folder)}
                 />
               ))}
-              {currentFiles.map((item) => <FileCard key={item._id} item={item} selected={selected.includes(item._id)} onSelect={() => toggleSelected(item._id)} onPreview={() => setPreview(item)} onDetails={() => setDetails(item)} onCopy={() => copyUrl(item)} onRename={() => renameMedia(item)} onDelete={() => setDeleteTarget(item)} onMove={(folderId) => moveMutation.mutate({ id: item._id, folderId })} folders={allFolders} />)}
+              {currentFiles.map((item) => <FileCard key={item._id} item={item} selected={selected.includes(item._id)} onSelect={() => toggleSelected(item._id)} onPreview={() => setPreview(item)} onDetails={() => setDetails(item)} onCopy={() => copyUrl(item)} onRename={() => renameMedia(item)} onDelete={() => setDeleteTarget(item)} onRestore={filter === "trash" ? () => restoreMutation.mutate(item._id) : undefined} onMove={(folderId) => moveMutation.mutate({ id: item._id, folderId })} folders={allFolders} />)}
             </motion.div>
           ) : (
             <Card className="overflow-hidden">
@@ -702,7 +750,7 @@ export default function Media() {
                   </div>
                 </div>
               ) : (
-                <FileRow key={entry.item._id} item={entry.item} selected={selected.includes(entry.item._id)} onSelect={() => toggleSelected(entry.item._id)} onPreview={() => setPreview(entry.item)} onDetails={() => setDetails(entry.item)} onCopy={() => copyUrl(entry.item)} onRename={() => renameMedia(entry.item)} onDelete={() => setDeleteTarget(entry.item)} />
+                <FileRow key={entry.item._id} item={entry.item} selected={selected.includes(entry.item._id)} onSelect={() => toggleSelected(entry.item._id)} onPreview={() => setPreview(entry.item)} onDetails={() => setDetails(entry.item)} onCopy={() => copyUrl(entry.item)} onRename={() => renameMedia(entry.item)} onRestore={filter === "trash" ? () => restoreMutation.mutate(entry.item._id) : undefined} onDelete={() => setDeleteTarget(entry.item)} />
               ))}
             </Card>
           )}
@@ -713,13 +761,14 @@ export default function Media() {
         open={uploadOpen}
         queue={queue}
         onClose={() => setUploadOpen(false)}
-        onPick={() => uploadInputRef.current?.click()}
-        onPickFolder={() => folderInputRef.current?.click()}
+        onPick={() => requireWorkspace() && uploadInputRef.current?.click()}
+        onPickFolder={() => requireWorkspace() && folderInputRef.current?.click()}
         onFiles={enqueue}
         onUpload={startUpload}
         onCancel={cancelUpload}
         onRemove={removeUpload}
         onClearCompleted={clearCompletedUploads}
+        onStartQueued={startQueuedUploads}
       />
       <input ref={uploadInputRef} className="sr-only" type="file" multiple onChange={(event) => { enqueue(event.target.files); event.currentTarget.value = ""; }} />
       <input ref={folderInputRef} className="sr-only" type="file" multiple webkitdirectory="" directory="" onChange={(event) => { enqueue(event.target.files); event.currentTarget.value = ""; }} />
@@ -754,7 +803,7 @@ function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem
   );
 }
 
-function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onCopy, onRename, onDelete, onMove }: { item: MediaItem; selected: boolean; folders: FolderItem[]; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onDelete: () => void; onMove: (folderId: string | null) => void }) {
+function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onCopy, onRename, onDelete, onRestore, onMove }: { item: MediaItem; selected: boolean; folders: FolderItem[]; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onDelete: () => void; onRestore?: () => void; onMove: (folderId: string | null) => void }) {
   return (
     <motion.div layout className={cn("surface group rounded-lg p-3 transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70", selected && "border-accent ring-1 ring-accent/40")}>
       <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-border/70 bg-[#090c13] text-accent">
@@ -764,6 +813,7 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
           <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onPreview} title="Preview"><Eye size={15} /></button>
           <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onCopy} title="Copy URL"><Copy size={15} /></button>
           <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onRename} title="Rename"><FileText size={15} /></button>
+          {onRestore && <button className="rounded-md bg-emerald-500/90 p-2 text-white backdrop-blur transition hover:bg-emerald-400" onClick={onRestore} title="Restore"><RotateCcw size={15} /></button>}
           <button className="rounded-md bg-red-500/90 p-2 text-white backdrop-blur transition hover:bg-red-400" onClick={onDelete} title="Delete"><Trash2 size={15} /></button>
         </div>
       </div>
@@ -782,7 +832,7 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
   );
 }
 
-function FileRow({ item, selected, onSelect, onPreview, onDetails, onCopy, onRename, onDelete }: { item: MediaItem; selected: boolean; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onDelete: () => void }) {
+function FileRow({ item, selected, onSelect, onPreview, onDetails, onCopy, onRename, onRestore, onDelete }: { item: MediaItem; selected: boolean; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onRestore?: () => void; onDelete: () => void }) {
   return (
     <div className="grid grid-cols-[36px_1fr_140px_130px_130px_44px] items-center border-b border-border/70 px-4 py-3 text-sm hover:bg-white/5">
       <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="h-4 w-4 accent-[#5b8cff]" />
@@ -794,6 +844,7 @@ function FileRow({ item, selected, onSelect, onPreview, onDetails, onCopy, onRen
       <div className="col-span-6 hidden gap-2 py-2 md:flex">
         <Button size="sm" variant="secondary" onClick={onCopy}><Copy size={14} /> Copy URL</Button>
         <Button size="sm" variant="secondary" onClick={onRename}><FileText size={14} /> Rename</Button>
+        {onRestore && <Button size="sm" variant="secondary" onClick={onRestore}><RotateCcw size={14} /> Restore</Button>}
         <Button size="sm" variant="destructive" onClick={onDelete}><Trash2 size={14} /> Delete</Button>
       </div>
     </div>
@@ -819,7 +870,8 @@ function UploadModal({
   onUpload,
   onCancel,
   onRemove,
-  onClearCompleted
+  onClearCompleted,
+  onStartQueued
 }: {
   open: boolean;
   queue: UploadItem[];
@@ -831,10 +883,12 @@ function UploadModal({
   onCancel: (id: string) => void;
   onRemove: (id: string) => void;
   onClearCompleted: () => void;
+  onStartQueued: () => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const activeUploads = queue.filter((item) => item.status === "uploading" || item.status === "processing").length;
   const completedUploads = queue.filter((item) => item.status === "success" || item.status === "failed" || item.status === "canceled").length;
+  const queuedUploads = queue.filter((item) => item.status === "queued").length;
 
   return (
     <AnimatePresence>
@@ -884,6 +938,7 @@ function UploadModal({
               <div className="flex gap-2">
                 <Button size="sm" variant="secondary" onClick={onPick}><UploadCloud size={14} /> Choose files</Button>
                 <Button size="sm" variant="outline" onClick={onPickFolder}><FolderPlus size={14} /> Upload folder</Button>
+                {!!queuedUploads && <Button size="sm" onClick={onStartQueued}><UploadCloud size={14} /> Start uploads</Button>}
               </div>
               {!!completedUploads && <Button size="sm" variant="ghost" onClick={onClearCompleted}>Clear completed</Button>}
             </div>

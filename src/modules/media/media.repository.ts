@@ -30,6 +30,10 @@ export class MediaRepository {
     return MediaModel.findByIdAndDelete(id);
   }
 
+  restoreById(id: string, uploadedBy: string) {
+    return MediaModel.findOneAndUpdate({ _id: id, uploadedBy, status: "deleted" }, { status: "ready" }, { new: true });
+  }
+
   updateOrganization(id: string, uploadedBy: string, data: { folderId?: string | null; originalName?: string }) {
     return MediaModel.findOneAndUpdate({ _id: id, uploadedBy, status: { $ne: "deleted" } }, data, { new: true });
   }
@@ -38,6 +42,10 @@ export class MediaRepository {
     const filter: FilterQuery<MediaDocument> = { _id: { $in: ids } };
     if (uploadedBy) filter.uploadedBy = uploadedBy;
     return MediaModel.updateMany(filter, { status: "deleted" });
+  }
+
+  restoreMany(ids: string[], uploadedBy: string) {
+    return MediaModel.updateMany({ _id: { $in: ids }, uploadedBy, status: "deleted" }, { status: "ready" });
   }
 
   analytics() {

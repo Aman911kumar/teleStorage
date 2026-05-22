@@ -135,4 +135,13 @@ export class MediaController {
     const result = await mediaService.bulkDelete(ids, req.user!.id, req.user!.role);
     res.json({ success: true, data: result });
   };
+
+  restore = async (req: AuthenticatedRequest, res: Response) => {
+    res.json({ success: true, data: await mediaService.restore(req.params.id, req.user!.id) });
+  };
+
+  bulkRestore = async (req: AuthenticatedRequest, res: Response) => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+    res.json({ success: true, data: await mediaService.bulkRestore(ids, req.user!.id) });
+  };
 }

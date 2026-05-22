@@ -15,6 +15,7 @@ mediaRouter.post("/api/upload", requireAuth, upload.single("file"), asyncHandler
 mediaRouter.get("/api/media", requireAuth, asyncHandler(controller.list));
 mediaRouter.get("/api/media/:id", streamRateLimit, optionalAuth, asyncHandler(controller.stream));
 mediaRouter.patch("/api/media/:id", requireAuth, asyncHandler(controller.update));
+mediaRouter.patch("/api/media/:id/restore", requireAuth, asyncHandler(controller.restore));
 mediaRouter.delete("/api/media/:id", requireAuth, asyncHandler(controller.delete));
 mediaRouter.get("/media/:id", streamRateLimit, optionalAuth, asyncHandler(controller.stream));
 mediaRouter.get("/media/:id/view", streamRateLimit, optionalAuth, asyncHandler(controller.view));
@@ -23,3 +24,4 @@ mediaRouter.get("/media/:id/thumb", streamRateLimit, optionalAuth, asyncHandler(
 mediaRouter.get("/media/:id/thumbnail", streamRateLimit, optionalAuth, asyncHandler(controller.thumbnail));
 mediaRouter.delete("/media/:id", requireAuth, asyncHandler(controller.delete));
 mediaRouter.post("/media/bulk-delete", requireAuth, asyncHandler(controller.bulkDelete));
+mediaRouter.post("/media/bulk-restore", requireAuth, asyncHandler(controller.bulkRestore));
