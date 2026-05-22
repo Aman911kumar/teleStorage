@@ -13,6 +13,11 @@ const createFolderSchema = z.object({
   parentId: z.string().optional(),
   metadata: z.record(z.string()).optional()
 });
+const ensureFolderSchema = z.object({
+  workspaceId: z.string().min(1),
+  path: z.string().min(1).max(500),
+  parentId: z.string().optional()
+});
 
 const renameFolderSchema = z.object({
   workspaceId: z.string().min(1),
@@ -37,6 +42,15 @@ folderRouter.post(
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const body = createFolderSchema.parse(req.body);
     res.status(201).json({ success: true, data: await service.create(body.workspaceId, req.user!.id, body) });
+  })
+);
+
+folderRouter.post(
+  "/api/folders/ensure",
+  requireAuth,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const body = ensureFolderSchema.parse(req.body);
+    res.status(201).json({ success: true, data: await service.ensurePath(body.workspaceId, req.user!.id, body) });
   })
 );
 

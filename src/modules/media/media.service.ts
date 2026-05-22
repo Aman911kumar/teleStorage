@@ -4,6 +4,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { Response } from "express";
 import { nanoid } from "nanoid";
+import sharp from "sharp";
 import { env } from "../../config/env.js";
 import type { UploadInput } from "../../providers/storage.types.js";
 import { AppError, ForbiddenError, NotFoundError } from "../../core/errors.js";
@@ -25,6 +26,13 @@ type UploadOptions = {
   tags?: string[];
   visibility?: "public" | "private";
   metadata?: Record<string, string>;
+};
+type ImageTransformOptions = {
+  width?: number;
+  height?: number;
+  quality?: number;
+  format?: "jpeg" | "webp" | "png" | "avif";
+  fit?: "cover" | "contain" | "inside" | "outside";
 };
 const uploadLocks = new Map<string, Promise<void>>();
 const cacheLocks = new Map<string, Promise<string>>();
@@ -50,6 +58,11 @@ export class MediaService {
     let uploadLock: Promise<void> | undefined;
     try {
       const credentials = await this.workspaceService.getTokenForUpload(userId, workspaceId);
+      const storageLimitBytes = credentials.workspace.storageLimitBytes ?? 0;
+      const projectedStorage = (credentials.workspace.storageUsed ?? 0) + file.size;
+      if (storageLimitBytes > 0 && projectedStorage > storageLimitBytes) {
+        throw new AppError("Workspace storage limit exceeded.", 413, "WORKSPACE_STORAGE_LIMIT_EXCEEDED");
+      }
       const storage = new TelegramStorageProvider(credentials.botToken, credentials.channelId);
       const signature = await validateFileSignature(sourcePath, file.mimetype);
       const checksum = await sha256File(sourcePath);
@@ -178,14 +191,21 @@ export class MediaService {
     userId?: string,
     token?: string,
     range?: string,
-    options: { download?: boolean; thumbnail?: boolean; requireAccess?: boolean } = {}
+    options: {
+      download?: boolean;
+      thumbnail?: boolean;
+      requireAccess?: boolean;
+      ifNoneMatch?: string;
+      transform?: ImageTransformOptions;
+    } = {}
   ) {
     const media = await this.repository.findById(mediaId);
     if (!media || media.status === "deleted") throw new NotFoundError("Media not found");
 
     const shouldValidateAccess = options.requireAccess !== false;
     const publicOrOwner = media.visibility === "public" || String(media.uploadedBy) === userId;
-    if (shouldValidateAccess && !publicOrOwner && !verifySignedToken(mediaId, token)) {
+    const transformScope = options.transform ? this.transformScope(options.transform) : undefined;
+    if (shouldValidateAccess && !publicOrOwner && !verifySignedToken(mediaId, token, transformScope)) {
       throw new ForbiddenError("Media is private");
     }
 
@@ -203,8 +223,16 @@ export class MediaService {
         };
 
     const etag = `"${media.checksum}"`;
+    if (options.ifNoneMatch === etag && !options.download) {
+      res.status(304).end();
+      return;
+    }
+
+    const cacheControl = media.visibility === "public" && !options.download
+      ? "public, max-age=86400, stale-while-revalidate=604800"
+      : "private, max-age=60";
     res.setHeader("ETag", etag);
-    res.setHeader("Cache-Control", options.thumbnail ? "public, max-age=3600" : "private, max-age=60");
+    res.setHeader("Cache-Control", options.thumbnail ? "public, max-age=3600, stale-while-revalidate=86400" : cacheControl);
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Type", target.mimeType);
     res.setHeader("Content-Disposition", `${options.download ? "attachment" : "inline"}; filename="${encodeURIComponent(media.originalName)}"`);
@@ -212,6 +240,13 @@ export class MediaService {
     if (options.thumbnail) {
       const cachePath = await this.ensureCached(mediaId, target.providerFileId, storage, "thumb");
       await this.pipeCachedFile(cachePath, target.mimeType, res, range);
+      return;
+    }
+
+    if (options.transform) {
+      if (!media.mimeType.startsWith("image/")) throw new AppError("Image transformations are only supported for images.", 400, "TRANSFORM_NOT_SUPPORTED");
+      const transformed = await this.ensureTransformed(mediaId, target.providerFileId, storage, options.transform);
+      await this.pipeCachedFile(transformed.path, transformed.mimeType, res, range);
       return;
     }
 
@@ -227,6 +262,12 @@ export class MediaService {
     if (!media) throw new NotFoundError("Media not found");
     if (String(media.uploadedBy) !== userId && role !== "admin") throw new ForbiddenError();
     const workspaceId = media.workspaceId ? String(media.workspaceId) : undefined;
+    if (media.status === "deleted") {
+      await this.repository.purgeById(mediaId);
+      if (workspaceId) await this.syncWorkspaceUsage(workspaceId);
+      await fs.rm(path.join(env.LOCAL_CACHE_DIR, mediaId), { recursive: true, force: true }).catch(() => undefined);
+      return;
+    }
     if (workspaceId) {
       const credentials = await this.workspaceService.getCredentialsById(String(media.workspaceId));
       const storage = new TelegramStorageProvider(credentials.botToken, credentials.channelId);
@@ -256,8 +297,33 @@ export class MediaService {
     return this.repository.failedUploads();
   }
 
-  async recentUploads(userId: string) {
-    const media = await this.repository.recent(userId);
+  async syncTelegram(workspaceId: string, userId: string) {
+    const credentials = await this.workspaceService.getTokenForUpload(userId, workspaceId);
+    const storage = new TelegramStorageProvider(credentials.botToken, credentials.channelId);
+    const media = await this.repository.listForWorkspaceOwner(workspaceId, userId);
+    const removed: string[] = [];
+    const checked: string[] = [];
+
+    for (const item of media) {
+      checked.push(item.id);
+      if (item.status === "deleted") {
+        await this.repository.purgeById(item.id);
+        removed.push(item.id);
+        continue;
+      }
+      const exists = await storage.fileExists(item.providerFileId);
+      if (!exists) {
+        await this.repository.purgeById(item.id);
+        removed.push(item.id);
+      }
+    }
+
+    if (removed.length) await this.syncWorkspaceUsage(workspaceId);
+    return { checked: checked.length, removed: removed.length, removedIds: removed };
+  }
+
+  async recentUploads(userId: string, includeDeleted = false) {
+    const media = await this.repository.recent(userId, 100, { includeDeleted });
     return media.map((item) => {
       const object = item.toObject();
       const token = createSignedToken(item.id);
@@ -312,14 +378,45 @@ export class MediaService {
     return path.join(env.LOCAL_CACHE_DIR, mediaId, `${variant}-${safeProviderId}`);
   }
 
+  createSignedLinks(mediaId: string, expiresInSeconds: number, transform?: ImageTransformOptions) {
+    const normalizedTransform = transform ? this.normalizeTransform(transform) : undefined;
+    const query = normalizedTransform ? `&${new URLSearchParams(this.transformQuery(normalizedTransform)).toString()}` : "";
+    const scope = normalizedTransform ? this.transformScope(normalizedTransform) : undefined;
+    const token = createSignedToken(mediaId, expiresInSeconds, scope);
+    return {
+      expiresInSeconds,
+      viewUrl: `/media/${mediaId}/view?token=${token}${query}`,
+      downloadUrl: `/media/${mediaId}/download?token=${token}`,
+      thumbnailUrl: `/media/${mediaId}/thumb?token=${token}`
+    };
+  }
+
   private async materializeUpload(file: Express.Multer.File) {
     await fs.mkdir(env.UPLOAD_TMP_DIR, { recursive: true });
     if (file.path) {
+      const safeName = file.originalname.replace(/[\\/]+/g, "-").replace(/\s+/g, "_");
+      const target = path.join(env.UPLOAD_TMP_DIR, `processing-${Date.now()}-${nanoid()}-${safeName}`);
       try {
         await fs.access(file.path);
-        trackTempFile(file.path);
-        return file.path;
-      } catch {
+        trackTempFile(target);
+        try {
+          await fs.rename(file.path, target);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+          await pipeline(createReadStream(file.path), createWriteStream(target));
+          await fs.rm(file.path, { force: true });
+        }
+        untrackTempFile(file.path);
+        return target;
+      } catch (error) {
+        untrackTempFile(target);
+        await fs.rm(target, { force: true }).catch(() => undefined);
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          logger.warn("Upload temp file disappeared before processing", {
+            originalName: file.originalname,
+            path: file.path
+          });
+        }
         throw new AppError("Upload temp file was not available. Please retry the upload.", 400, "UPLOAD_TEMP_FILE_MISSING");
       }
     }
@@ -380,6 +477,67 @@ export class MediaService {
 
     cacheLocks.set(lockKey, promise);
     return promise;
+  }
+
+  private normalizeTransform(input: ImageTransformOptions) {
+    const width = input.width ? Math.min(Math.max(Math.floor(input.width), 1), 4096) : undefined;
+    const height = input.height ? Math.min(Math.max(Math.floor(input.height), 1), 4096) : undefined;
+    const quality = Math.min(Math.max(Math.floor(input.quality ?? 82), 1), 100);
+    const format = input.format ?? "webp";
+    const fit = input.fit ?? "inside";
+    return { width, height, quality, format, fit };
+  }
+
+  private transformQuery(transform: Required<Pick<ImageTransformOptions, "quality" | "format" | "fit">> & Pick<ImageTransformOptions, "width" | "height">) {
+    return Object.fromEntries(
+      Object.entries({
+        w: transform.width ? String(transform.width) : undefined,
+        h: transform.height ? String(transform.height) : undefined,
+        q: String(transform.quality),
+        format: transform.format,
+        fit: transform.fit
+      }).filter(([, value]) => value)
+    ) as Record<string, string>;
+  }
+
+  private transformScope(transform: ImageTransformOptions) {
+    const normalized = this.normalizeTransform(transform);
+    return JSON.stringify(this.transformQuery(normalized));
+  }
+
+  private async ensureTransformed(mediaId: string, providerFileId: string, storage: TelegramStorageProvider, transform: ImageTransformOptions) {
+    const normalized = this.normalizeTransform(transform);
+    const variant = `transform-${normalized.width ?? "auto"}x${normalized.height ?? "auto"}-${normalized.fit}-${normalized.format}-q${normalized.quality}`;
+    const target = this.cachePath(mediaId, providerFileId, variant);
+    try {
+      const stat = await fs.stat(target);
+      if (Date.now() - stat.mtimeMs <= env.CACHE_TTL_SECONDS * 1000) {
+        return { path: target, mimeType: `image/${normalized.format}` };
+      }
+      await fs.rm(target, { force: true });
+    } catch {
+      // Cache miss.
+    }
+
+    const lockKey = `${mediaId}:${variant}:${providerFileId}`;
+    const active = cacheLocks.get(lockKey);
+    if (active) return { path: await active, mimeType: `image/${normalized.format}` };
+
+    const promise = (async () => {
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      const tempPath = `${target}.tmp-${Date.now()}`;
+      const providerStream = await storage.streamFile(providerFileId);
+      const transformer = sharp()
+        .rotate()
+        .resize({ width: normalized.width, height: normalized.height, fit: normalized.fit, withoutEnlargement: true })
+        .toFormat(normalized.format, { quality: normalized.quality });
+      await pipeline(providerStream.stream, transformer, createWriteStream(tempPath));
+      await fs.rename(tempPath, target);
+      return target;
+    })().finally(() => cacheLocks.delete(lockKey));
+
+    cacheLocks.set(lockKey, promise);
+    return { path: await promise, mimeType: `image/${normalized.format}` };
   }
 
   private async pipeProviderStream(

@@ -35,6 +35,46 @@ export class FolderService {
     return folder.toObject();
   }
 
+  async ensurePath(workspaceId: string, ownerId: string, input: { path: string; parentId?: string }) {
+    await this.assertWorkspaceOwner(workspaceId, ownerId);
+    const parts = input.path.split(/[\\/]+/g).map(cleanName).filter(Boolean);
+    if (!parts.length) throw new AppError("Folder path is required.", 400, "FOLDER_PATH_REQUIRED");
+
+    let parentId = input.parentId;
+    let parentPath: string | undefined;
+    if (parentId) {
+      const parent = await FolderModel.findOne({ _id: parentId, workspaceId }).lean();
+      if (!parent) throw new NotFoundError("Parent folder not found");
+      parentPath = parent.path;
+    }
+
+    let folder;
+    for (const name of parts) {
+      const folderPath = joinPath(parentPath, name);
+      folder = await FolderModel.findOne({ workspaceId, path: folderPath });
+      if (!folder) {
+        try {
+          folder = await FolderModel.create({
+            workspaceId,
+            createdBy: ownerId,
+            parentId,
+            name,
+            path: folderPath,
+            metadata: {}
+          });
+        } catch (error) {
+          if ((error as { code?: number }).code !== 11000) throw error;
+          folder = await FolderModel.findOne({ workspaceId, path: folderPath });
+          if (!folder) throw error;
+        }
+      }
+      parentId = String(folder._id);
+      parentPath = folder.path;
+    }
+
+    return folder!.toObject();
+  }
+
   async list(workspaceId: string, parentId?: string) {
     const filter: Record<string, unknown> = { workspaceId };
     if (parentId) filter.parentId = parentId;

@@ -58,6 +58,9 @@ function assertTelegramOk<T>(body: TelegramEnvelope<T>, status: number, url: str
   }
 
   if (status < 200 || status >= 300) {
+    if (status === 400 && /message to delete not found/i.test(body.description ?? "")) {
+      throw new AppError(body.description ?? "Telegram message not found.", 404, "TELEGRAM_MESSAGE_NOT_FOUND");
+    }
     logger.error("Telegram HTTP error", {
       url: sanitizeUrl(url),
       status,

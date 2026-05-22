@@ -4,8 +4,10 @@ import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import type { AuthenticatedRequest } from "../../core/types.js";
 import { WorkspaceService } from "./workspace.service.js";
+import { MediaService } from "../media/media.service.js";
 
 const service = new WorkspaceService();
+const mediaService = new MediaService();
 const workspaceSchema = z.object({
   name: z.string().min(2).max(80),
   telegramBotToken: z.string().min(20),
@@ -70,6 +72,14 @@ workspaceRouter.delete(
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     await service.delete(req.user!.id, req.params.id);
     res.status(204).send();
+  })
+);
+
+workspaceRouter.post(
+  "/api/workspaces/:id/sync",
+  requireAuth,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    res.json({ success: true, data: await mediaService.syncTelegram(req.params.id, req.user!.id) });
   })
 );
 

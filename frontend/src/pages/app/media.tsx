@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -41,11 +41,13 @@ import {
   createFolder,
   deleteFolder,
   deleteMedia,
+  ensureFolderPath,
   getFolders,
   getMedia,
   getWorkspaces,
   notifyError,
   renameFolder,
+  syncWorkspace,
   updateMedia,
   uploadMedia,
   type FolderItem,
@@ -54,10 +56,33 @@ import {
 } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/store/ui-store";
 
 type ViewMode = "grid" | "list";
-type UploadItem = { id: string; file: File; progress: number; status: "queued" | "uploading" | "success" | "failed"; preview?: string };
+type UploadStatus = "queued" | "uploading" | "processing" | "success" | "failed" | "canceled";
+type UploadItem = {
+  id: string;
+  file: File;
+  progress: number;
+  status: UploadStatus;
+  preview?: string;
+  uploadedBytes?: number;
+  speed?: number;
+  etaSeconds?: number;
+  error?: string;
+  startedAt?: number;
+  folderPath?: string;
+};
 type ExplorerFilter = "all" | "images" | "videos" | "documents" | "recent" | "favorites" | "trash" | "shared";
+const MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_CONCURRENT_UPLOADS = 3;
+
+declare module "react" {
+  interface InputHTMLAttributes<T> {
+    webkitdirectory?: string;
+    directory?: string;
+  }
+}
 
 const filterItems: Array<{ id: ExplorerFilter; label: string; icon: typeof File }> = [
   { id: "all", label: "All Files", icon: File },
@@ -121,8 +146,14 @@ function uploadKey(file: File) {
 
 export default function Media() {
   const queryClient = useQueryClient();
+  const uploadRequestId = useUiStore((state) => state.uploadRequestId);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const controllers = useRef(new Map<string, AbortController>());
+  const inFlightUploads = useRef(new Set<string>());
+  const queueRef = useRef<UploadItem[]>([]);
+  const ensuredFolders = useRef(new Map<string, string>());
+  const uploadRequestHydrated = useRef(false);
   const [workspaceId, setWorkspaceId] = useState("");
   const [activeFolder, setActiveFolder] = useState<FolderItem | null>(null);
   const [filter, setFilter] = useState<ExplorerFilter>("all");
@@ -140,11 +171,32 @@ export default function Media() {
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderItem | null>(null);
   const [queue, setQueue] = useState<UploadItem[]>([]);
 
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
+
+  useEffect(() => {
+    return () => {
+      controllers.current.forEach((controller) => controller.abort());
+      queueRef.current.forEach((item) => {
+        if (item.preview) URL.revokeObjectURL(item.preview);
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!uploadRequestHydrated.current) {
+      uploadRequestHydrated.current = true;
+      return;
+    }
+    if (uploadRequestId > 0) setUploadOpen(true);
+  }, [uploadRequestId]);
+
   const { data: workspaces = [], isLoading: workspacesLoading } = useQuery({ queryKey: ["workspaces"], queryFn: getWorkspaces });
   const activeWorkspace: Workspace | undefined = useMemo(() => workspaces.find((workspace) => workspace._id === workspaceId) ?? workspaces[0], [workspaceId, workspaces]);
   const resolvedWorkspaceId = activeWorkspace?._id ?? "";
 
-  const mediaQuery = useQuery({ queryKey: ["media"], queryFn: getMedia });
+  const mediaQuery = useQuery({ queryKey: ["media"], queryFn: () => getMedia({ includeDeleted: true }) });
   const foldersQuery = useQuery({
     queryKey: ["folders", resolvedWorkspaceId],
     queryFn: () => getFolders(resolvedWorkspaceId),
@@ -217,84 +269,193 @@ export default function Media() {
     }
   });
 
+  const syncMutation = useMutation({
+    mutationFn: syncWorkspace,
+    onSuccess: async (result) => {
+      toast.success(result.removed ? `Synced. Removed ${result.removed} missing file${result.removed > 1 ? "s" : ""}.` : `Synced. Checked ${result.checked} files.`);
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
+      await queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+    onError: (error) => notifyError(error, "Unable to sync Telegram files.")
+  });
+
   const allFolders = foldersQuery.data ?? [];
   const media = useMemo(() => mediaQuery.data ?? [], [mediaQuery.data]);
   const currentFolderId = activeFolder?._id;
   const currentFiles = useMemo(() => {
     return media
-      .filter((item) => (currentFolderId ? item.folderId === currentFolderId : !item.folderId))
+      .filter((item) => {
+        if (filter === "trash") return item.status === "deleted";
+        return item.status !== "deleted";
+      })
+      .filter((item) => filter === "trash" || (currentFolderId ? item.folderId === currentFolderId : !item.folderId))
       .filter((item) => {
         if (filter === "images") return item.mimeType.startsWith("image/");
         if (filter === "videos") return item.mimeType.startsWith("video/");
         if (filter === "documents") return !item.mimeType.startsWith("image/") && !item.mimeType.startsWith("video/");
-        if (filter === "trash") return false;
         return true;
       })
       .filter((item) => item.originalName.toLowerCase().includes(query.toLowerCase()) || item.tags?.some((tag) => tag.toLowerCase().includes(query.toLowerCase())));
   }, [media, currentFolderId, filter, query]);
 
-  const currentFolders = allFolders.filter((folder) => (currentFolderId ? folder.parentId === currentFolderId : !folder.parentId));
+  const currentFolders = filter === "trash" ? [] : allFolders.filter((folder) => (currentFolderId ? folder.parentId === currentFolderId : !folder.parentId));
   const selectedItems = currentFiles.filter((item) => selected.includes(item._id));
   const currentImageIndex = preview ? currentFiles.findIndex((item) => item._id === preview._id) : -1;
+  const storageLimitBytes = activeWorkspace?.storageLimitBytes ?? 0;
+  const storagePercent = storageLimitBytes > 0 ? Math.min(((activeWorkspace?.storageUsed ?? 0) / storageLimitBytes) * 100, 100) : 0;
+  const queueStats = {
+    total: queue.length,
+    uploading: queue.filter((item) => item.status === "uploading" || item.status === "processing").length,
+    failed: queue.filter((item) => item.status === "failed").length,
+    completed: queue.filter((item) => item.status === "success").length
+  };
 
   function toggleSelected(id: string) {
     setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
-  function enqueue(files?: FileList | null) {
+  const enqueue = useCallback((files?: FileList | null) => {
     if (!files?.length) return;
-    const existing = new Set(queue.map((item) => uploadKey(item.file)));
-    const incoming = Array.from(files)
-      .filter((file) => !existing.has(uploadKey(file)))
-      .map((file) => ({
+    const existing = new Set(queueRef.current.map((item) => uploadKey(item.file)));
+    const accepted: File[] = [];
+    let duplicateCount = 0;
+    let oversizedCount = 0;
+
+    for (const file of Array.from(files)) {
+      const key = uploadKey(file);
+      if (existing.has(key)) {
+        duplicateCount += 1;
+        continue;
+      }
+      if (file.size > MAX_SINGLE_FILE_BYTES) {
+        oversizedCount += 1;
+        continue;
+      }
+      existing.add(key);
+      accepted.push(file);
+    }
+
+    const incoming = accepted.map((file) => {
+      const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+      const folderPath = relativePath ? relativePath.split("/").slice(0, -1).join("/") : undefined;
+      return {
         id: crypto.randomUUID(),
         file,
         progress: 0,
         status: "queued" as const,
+        uploadedBytes: 0,
+        folderPath,
         preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined
-      }));
+      };
+    });
+
+    if (oversizedCount) {
+      toast.error(`${oversizedCount} file${oversizedCount > 1 ? "s are" : " is"} larger than the 2 GB single-file limit.`);
+    }
+    if (duplicateCount) {
+      toast("Duplicate files were skipped", { icon: "!" });
+    }
+
     if (!incoming.length) {
-      toast("Files are already in the upload queue", { icon: "!" });
       return;
     }
     setQueue((current) => [...incoming, ...current]);
     setUploadOpen(true);
-  }
+  }, []);
 
-  async function startUpload(item: UploadItem) {
+  const removeUpload = useCallback((id: string) => {
+    controllers.current.get(id)?.abort();
+    controllers.current.delete(id);
+    inFlightUploads.current.delete(id);
+    setQueue((current) => {
+      const target = current.find((item) => item.id === id);
+      if (target?.preview) URL.revokeObjectURL(target.preview);
+      return current.filter((item) => item.id !== id);
+    });
+  }, []);
+
+  const startUpload = useCallback(async (item: UploadItem) => {
     if (!resolvedWorkspaceId) {
       toast.error("Create or select a workspace first");
       return;
     }
-    if (controllers.current.has(item.id)) return;
+    if (controllers.current.has(item.id) || inFlightUploads.current.has(item.id)) return;
+    inFlightUploads.current.add(item.id);
     const controller = new AbortController();
     controllers.current.set(item.id, controller);
-    setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "uploading", progress: 1 } : q));
+    const startedAt = Date.now();
+    setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "uploading", progress: 1, uploadedBytes: 0, speed: 0, etaSeconds: undefined, error: undefined, startedAt } : q));
     try {
-      const result = await uploadMedia(item.file, resolvedWorkspaceId, (progress) => {
-        if (!controller.signal.aborted) setQueue((current) => current.map((q) => q.id === item.id ? { ...q, progress } : q));
-      }, controller.signal, { folderId: activeFolder?._id });
+      let targetFolderId = activeFolder?._id;
+      if (item.folderPath) {
+        const cacheKey = `${resolvedWorkspaceId}:${activeFolder?._id ?? "root"}:${item.folderPath}`;
+        targetFolderId = ensuredFolders.current.get(cacheKey);
+        if (!targetFolderId) {
+          const folder = await ensureFolderPath({ workspaceId: resolvedWorkspaceId, parentId: activeFolder?._id, path: item.folderPath });
+          targetFolderId = folder._id;
+          ensuredFolders.current.set(cacheKey, targetFolderId);
+          await queryClient.invalidateQueries({ queryKey: ["folders", resolvedWorkspaceId] });
+        }
+      }
+
+      const result = await uploadMedia(item.file, resolvedWorkspaceId, (progress, loaded = 0, total = item.file.size) => {
+        if (!controller.signal.aborted) {
+          const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.2);
+          const speed = loaded / elapsedSeconds;
+          const remainingBytes = Math.max(total - loaded, 0);
+          const etaSeconds = speed > 0 ? Math.ceil(remainingBytes / speed) : undefined;
+          setQueue((current) => current.map((q) => q.id === item.id ? { ...q, progress, uploadedBytes: loaded, speed, etaSeconds } : q));
+        }
+      }, controller.signal, { folderId: targetFolderId });
       if (controller.signal.aborted) return;
-      setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "success", progress: 100 } : q));
+      setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "processing", progress: 100, uploadedBytes: item.file.size } : q));
+      window.setTimeout(() => {
+        setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "success", progress: 100 } : q));
+      }, 350);
       toast.success(result.duplicate ? "This file already exists in your workspace." : "Upload complete");
       await queryClient.invalidateQueries({ queryKey: ["media"] });
       await queryClient.invalidateQueries({ queryKey: ["analytics"] });
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       setTimeout(() => removeUpload(item.id), 1800);
     } catch (error) {
-      if (axios.isCancel(error) || controller.signal.aborted) return;
-      setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "failed" } : q));
+      if (axios.isCancel(error) || controller.signal.aborted) {
+        setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "canceled", progress: 0 } : q));
+        window.setTimeout(() => removeUpload(item.id), 500);
+        return;
+      }
+      setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "failed", error: "Upload failed. Please retry." } : q));
       notifyError(error, "Upload failed. Please retry.");
     } finally {
       controllers.current.delete(item.id);
+      inFlightUploads.current.delete(item.id);
     }
-  }
+  }, [activeFolder?._id, queryClient, removeUpload, resolvedWorkspaceId]);
 
-  function removeUpload(id: string) {
+  const cancelUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
-    controllers.current.delete(id);
-    setQueue((current) => current.filter((item) => item.id !== id));
-  }
+    setQueue((current) => current.map((item) => item.id === id ? { ...item, status: "canceled", progress: 0 } : item));
+    window.setTimeout(() => removeUpload(id), 500);
+  }, [removeUpload]);
+
+  const clearCompletedUploads = useCallback(() => {
+    setQueue((current) => {
+      const removable = new Set(["success", "failed", "canceled"]);
+      current.forEach((item) => {
+        if (removable.has(item.status) && item.preview) URL.revokeObjectURL(item.preview);
+      });
+      return current.filter((item) => !removable.has(item.status));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!resolvedWorkspaceId) return;
+    const active = queue.filter((item) => item.status === "uploading" || item.status === "processing").length;
+    const slots = Math.max(MAX_CONCURRENT_UPLOADS - active, 0);
+    if (!slots) return;
+    const next = queue.filter((item) => item.status === "queued").slice(0, slots);
+    next.forEach((item) => void startUpload(item));
+  }, [queue, resolvedWorkspaceId, startUpload]);
 
   function copyUrl(item: MediaItem) {
     navigator.clipboard.writeText(resolveMediaUrl(item, "view"));
@@ -334,8 +495,8 @@ export default function Media() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-[#07080c]">
-      <div className="sticky top-16 z-20 border-b border-border/80 bg-[#080a10]/90 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
+    <main className="min-h-[calc(100vh-4rem)] bg-[#07090d]">
+      <div className="sticky top-16 z-20 border-b border-border/80 bg-[#080b11]/86 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1680px] flex-col gap-4 xl:flex-row xl:items-center">
           <div className="flex min-w-0 items-center gap-2 text-sm text-muted xl:w-72">
             <button className="text-white hover:text-accent" onClick={() => setActiveFolder(null)}>Workspace</button>
@@ -346,9 +507,10 @@ export default function Media() {
             <Input className="pl-9" placeholder="Search files, tags and folders" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
           <div className="flex flex-wrap gap-2 xl:ml-auto">
-            <select className="h-10 rounded-md border border-border bg-panel px-3 text-sm text-white" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
+            <select className="h-10 rounded-md border border-border bg-[#0d1118] px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
               {workspacesLoading ? <option>Loading workspaces...</option> : workspaces.map((workspace) => <option key={workspace._id} value={workspace._id}>{workspace.name}</option>)}
             </select>
+            <LoadingButton variant="secondary" loading={syncMutation.isPending} loadingText="Syncing..." disabled={!resolvedWorkspaceId} onClick={() => resolvedWorkspaceId && syncMutation.mutate(resolvedWorkspaceId)}><RefreshCw size={16} /> Sync</LoadingButton>
             <Button variant="secondary" onClick={() => setNewFolderOpen(true)}><FolderPlus size={16} /> New Folder</Button>
             <Button onClick={() => setUploadOpen(true)}><UploadCloud size={16} /> Upload</Button>
           </div>
@@ -356,10 +518,10 @@ export default function Media() {
       </div>
 
       <div className="mx-auto grid min-h-[calc(100vh-9rem)] max-w-[1680px] lg:grid-cols-[264px_1fr]">
-        <aside className="hidden border-r border-border bg-panel/30 p-4 lg:block">
+        <aside className="hidden border-r border-border bg-white/[0.018] p-4 lg:block">
           <nav className="space-y-1">
             {filterItems.map((item) => (
-              <button key={item.id} onClick={() => setFilter(item.id)} className={cn("flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted transition hover:bg-white/5 hover:text-white", filter === item.id && "bg-panel-2 text-white")}>
+              <button key={item.id} onClick={() => setFilter(item.id)} className={cn("flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted transition hover:bg-white/[0.055] hover:text-white", filter === item.id && "bg-white/[0.075] text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)]")}>
                 <item.icon size={17} /> {item.label}
               </button>
             ))}
@@ -370,7 +532,7 @@ export default function Media() {
             </div>
             <div className="space-y-1">
               {allFolders.length ? allFolders.map((folder) => (
-                <button key={folder._id} onClick={() => setActiveFolder(folder)} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-white/5 hover:text-white", activeFolder?._id === folder._id && "bg-panel-2 text-white")}>
+                <button key={folder._id} onClick={() => setActiveFolder(folder)} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted transition hover:bg-white/[0.055] hover:text-white", activeFolder?._id === folder._id && "bg-white/[0.075] text-white")}>
                   <Folder size={16} className="text-accent" />
                   <span className="truncate">{folder.path}</span>
                 </button>
@@ -380,13 +542,71 @@ export default function Media() {
         </aside>
 
         <section className="min-w-0 p-4 sm:p-6 lg:p-8">
-          <Card className="mb-6 border-border/80 bg-panel/70 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.18)]">
+          <Card className="mb-6 overflow-hidden p-0">
+            <div
+              className="grid gap-5 p-5 lg:grid-cols-[1.2fr_0.8fr]"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                enqueue(event.dataTransfer.files);
+              }}
+            >
+              <div className="rounded-lg border border-dashed border-slate-700 bg-[linear-gradient(135deg,rgba(91,140,255,0.12),rgba(255,255,255,0.025))] p-6 transition hover:border-accent/70">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-md border border-accent/20 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+                      <UploadCloud size={14} /> Universal uploader
+                    </div>
+                    <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white">Drop files to upload</h2>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
+                      Upload images, videos, PDFs, ZIPs and documents into {activeFolder ? activeFolder.name : "Root"}. Files start automatically with up to {MAX_CONCURRENT_UPLOADS} parallel uploads.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => uploadInputRef.current?.click()}><UploadCloud size={16} /> Choose files</Button>
+                    <Button variant="secondary" onClick={() => folderInputRef.current?.click()}><FolderPlus size={16} /> Upload folder</Button>
+                  </div>
+                </div>
+                <div className="mt-6 grid gap-3 sm:grid-cols-4">
+                  <UploadMetric label="Single file limit" value="2 GB" />
+                  <UploadMetric label="Queue" value={String(queueStats.total)} />
+                  <UploadMetric label="Active" value={String(queueStats.uploading)} />
+                  <UploadMetric label="Failed" value={String(queueStats.failed)} tone={queueStats.failed ? "danger" : "default"} />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-[#090c13]/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{activeWorkspace?.name ?? "No workspace"}</p>
+                    <p className="mt-1 text-xs text-muted">Storage usage</p>
+                  </div>
+                  <span className="rounded-md border border-border bg-white/[0.035] px-2.5 py-1 text-xs text-muted">
+                    {storageLimitBytes > 0 ? `${storagePercent.toFixed(0)}% used` : "Unlimited"}
+                  </span>
+                </div>
+                <div className="mt-5 h-2 overflow-hidden rounded bg-slate-800">
+                  <div className="h-full rounded bg-accent transition-all" style={{ width: `${storageLimitBytes > 0 ? storagePercent : 8}%` }} />
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-muted">
+                  <span>{formatBytes(activeWorkspace?.storageUsed ?? 0)} used</span>
+                  <span>{storageLimitBytes > 0 ? formatBytes(storageLimitBytes) : "No fixed cap"}</span>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-md border border-border bg-white/[0.025] p-3"><p className="text-muted">Files</p><p className="mt-1 font-semibold text-white">{activeWorkspace?.uploadCount ?? 0}</p></div>
+                  <div className="rounded-md border border-border bg-white/[0.025] p-3"><p className="text-muted">Completed</p><p className="mt-1 font-semibold text-white">{queueStats.completed}</p></div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="sticky top-[5.5rem] z-10 mb-6 p-3 backdrop-blur-xl">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
                 <Button variant={view === "grid" ? "primary" : "secondary"} size="sm" onClick={() => setView("grid")}><Grid2X2 size={15} /></Button>
                 <Button variant={view === "list" ? "primary" : "secondary"} size="sm" onClick={() => setView("list")}><LayoutList size={15} /></Button>
-                <Button variant="secondary" size="sm">Sort</Button>
-                <Button variant="secondary" size="sm">Filter</Button>
+                <Button variant="outline" size="sm">Sort</Button>
+                <Button variant="outline" size="sm">Filter</Button>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted">
                 {selected.length ? <><span>{selected.length} selected</span><Button variant="destructive" size="sm" onClick={() => selectedItems[0] && setDeleteTarget(selectedItems[0])}><Trash2 size={14} /> Delete</Button></> : <span>{currentFolders.length + currentFiles.length} items</span>}
@@ -437,8 +657,20 @@ export default function Media() {
         </section>
       </div>
 
-      <UploadModal open={uploadOpen} queue={queue} inputRef={uploadInputRef} onClose={() => setUploadOpen(false)} onPick={() => uploadInputRef.current?.click()} onFiles={enqueue} onUpload={startUpload} onRemove={removeUpload} />
+      <UploadModal
+        open={uploadOpen}
+        queue={queue}
+        onClose={() => setUploadOpen(false)}
+        onPick={() => uploadInputRef.current?.click()}
+        onPickFolder={() => folderInputRef.current?.click()}
+        onFiles={enqueue}
+        onUpload={startUpload}
+        onCancel={cancelUpload}
+        onRemove={removeUpload}
+        onClearCompleted={clearCompletedUploads}
+      />
       <input ref={uploadInputRef} className="sr-only" type="file" multiple onChange={(event) => { enqueue(event.target.files); event.currentTarget.value = ""; }} />
+      <input ref={folderInputRef} className="sr-only" type="file" multiple webkitdirectory="" directory="" onChange={(event) => { enqueue(event.target.files); event.currentTarget.value = ""; }} />
       <FolderModal open={newFolderOpen} value={folderName} loading={createFolderMutation.isPending} onChange={setFolderName} onClose={() => setNewFolderOpen(false)} onSubmit={createFolderSubmit} />
       <FolderModal open={!!renameFolderTarget} title="Rename folder" submitLabel="Save" value={renameFolderName} loading={renameFolderMutation.isPending} onChange={setRenameFolderName} onClose={() => setRenameFolderTarget(null)} onSubmit={submitRenameFolder} />
       <DeleteFolderModal folder={deleteFolderTarget} loading={deleteFolderMutation.isPending} onClose={() => setDeleteFolderTarget(null)} onConfirm={() => deleteFolderTarget && deleteFolderMutation.mutate({ id: deleteFolderTarget._id })} />
@@ -451,8 +683,8 @@ export default function Media() {
 
 function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem; onOpen: () => void; onRename: () => void; onDelete: () => void }) {
   return (
-    <motion.div layout className="group flex min-h-64 flex-col rounded-lg border border-border bg-panel p-4 text-left shadow-[0_10px_34px_rgba(0,0,0,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-600 hover:bg-panel-2">
-      <button onClick={onOpen} className="grid aspect-[4/3] place-items-center rounded-md border border-border/70 bg-[#090c13]">
+    <motion.div layout className="surface group flex min-h-64 flex-col rounded-lg p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70">
+      <button onClick={onOpen} className="grid aspect-[4/3] place-items-center rounded-md border border-border/70 bg-white/[0.025]">
         <Folder className="text-accent" size={42} />
       </button>
       <div className="mt-4 flex items-start justify-between gap-3">
@@ -471,7 +703,7 @@ function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem
 
 function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onCopy, onRename, onDelete, onMove }: { item: MediaItem; selected: boolean; folders: FolderItem[]; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onDelete: () => void; onMove: (folderId: string | null) => void }) {
   return (
-    <motion.div layout className={cn("group rounded-lg border border-border bg-panel p-3 shadow-[0_10px_34px_rgba(0,0,0,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-600 hover:bg-panel-2", selected && "border-accent ring-1 ring-accent/40")}>
+    <motion.div layout className={cn("surface group rounded-lg p-3 transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70", selected && "border-accent ring-1 ring-accent/40")}>
       <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-border/70 bg-[#090c13] text-accent">
         {item.mimeType.startsWith("image/") ? <MediaImage id={item._id} alt={item.originalName} /> : <div className="grid h-full place-items-center"><MediaTypeIcon item={item} size={40} /></div>}
         <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="absolute left-3 top-3 h-4 w-4 accent-[#5b8cff]" />
@@ -489,7 +721,7 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
         </div>
         <button className="rounded-md p-1.5 text-muted transition hover:bg-white/5 hover:text-white" onClick={onDetails} title="Details"><Info size={16} /></button>
       </div>
-      <select className="mt-3 h-9 w-full rounded-md border border-border bg-[#090c13] px-2 text-xs text-muted outline-none transition focus:border-accent" value={item.folderId ?? ""} onChange={(event) => onMove(event.target.value || null)}>
+      <select className="mt-3 h-9 w-full rounded-md border border-border bg-[#0d1118] px-2 text-xs text-slate-200 outline-none transition focus:border-accent" value={item.folderId ?? ""} onChange={(event) => onMove(event.target.value || null)}>
           <option value="">Root</option>
           {folders.map((folder) => <option key={folder._id} value={folder._id}>{folder.name}</option>)}
       </select>
@@ -515,30 +747,112 @@ function FileRow({ item, selected, onSelect, onPreview, onDetails, onCopy, onRen
   );
 }
 
-function UploadModal({ open, queue, inputRef, onClose, onPick, onFiles, onUpload, onRemove }: { open: boolean; queue: UploadItem[]; inputRef: React.RefObject<HTMLInputElement | null>; onClose: () => void; onPick: () => void; onFiles: (files?: FileList | null) => void; onUpload: (item: UploadItem) => void; onRemove: (id: string) => void }) {
+function UploadMetric({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "danger" }) {
+  return (
+    <div className={cn("rounded-md border border-border bg-black/20 p-3", tone === "danger" && "border-red-500/30 bg-red-500/10")}>
+      <p className="text-xs text-muted">{label}</p>
+      <p className={cn("mt-1 text-sm font-semibold text-white", tone === "danger" && "text-red-200")}>{value}</p>
+    </div>
+  );
+}
+
+function UploadModal({
+  open,
+  queue,
+  onClose,
+  onPick,
+  onPickFolder,
+  onFiles,
+  onUpload,
+  onCancel,
+  onRemove,
+  onClearCompleted
+}: {
+  open: boolean;
+  queue: UploadItem[];
+  onClose: () => void;
+  onPick: () => void;
+  onPickFolder: () => void;
+  onFiles: (files?: FileList | null) => void;
+  onUpload: (item: UploadItem) => void;
+  onCancel: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClearCompleted: () => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const activeUploads = queue.filter((item) => item.status === "uploading" || item.status === "processing").length;
+  const completedUploads = queue.filter((item) => item.status === "success" || item.status === "failed" || item.status === "canceled").length;
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ y: 16, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 16, opacity: 0, scale: 0.98 }} className="w-full max-w-2xl rounded-lg border border-border bg-panel p-5 shadow-2xl">
-            <div className="flex items-center justify-between"><h2 className="font-semibold text-white">Upload files</h2><button className="text-muted hover:text-white" onClick={onClose}><X size={18} /></button></div>
-            <label className="mt-4 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-700 bg-panel-2 text-center transition hover:border-accent/60">
-              <UploadCloud className="mb-3 text-accent" /><span className="text-sm font-medium text-white">Drop files or browse</span><span className="mt-1 text-xs text-muted">Images, videos, PDFs, ZIPs and documents</span>
-              <input ref={inputRef} className="sr-only" type="file" multiple onChange={(event) => { onFiles(event.target.files); event.currentTarget.value = ""; }} />
+          <motion.div initial={{ y: 16, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 16, opacity: 0, scale: 0.98 }} className="surface w-full max-w-2xl rounded-xl p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-white">Upload files</h2>
+                <p className="mt-1 text-xs text-muted">Up to 2 GB per file. {activeUploads ? `${activeUploads} active uploads` : "Uploads start automatically."}</p>
+              </div>
+              <button className="text-muted hover:text-white" onClick={onClose}><X size={18} /></button>
+            </div>
+            <label
+              className={cn(
+                "mt-4 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-700 bg-[linear-gradient(180deg,rgba(109,141,255,0.08),rgba(255,255,255,0.025))] text-center transition hover:border-accent/70 hover:bg-accent/10",
+                isDragging && "border-accent bg-accent/15 shadow-[0_0_0_1px_rgba(109,141,255,0.25),0_20px_70px_rgba(82,111,255,0.18)]"
+              )}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsDragging(true);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = "copy";
+                setIsDragging(true);
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                setIsDragging(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsDragging(false);
+                onFiles(event.dataTransfer.files);
+              }}
+            >
+              <span className="mb-4 grid h-12 w-12 place-items-center rounded-lg border border-accent/20 bg-accent/10 text-accent"><UploadCloud /></span><span className="text-sm font-medium text-white">Drop files or browse</span><span className="mt-1 text-xs text-muted">Images, videos, PDFs, ZIPs and documents</span>
+              <input className="sr-only" type="file" multiple onChange={(event) => { onFiles(event.target.files); event.currentTarget.value = ""; }} />
             </label>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={onPick}><UploadCloud size={14} /> Choose files</Button>
+                <Button size="sm" variant="outline" onClick={onPickFolder}><FolderPlus size={14} /> Upload folder</Button>
+              </div>
+              {!!completedUploads && <Button size="sm" variant="ghost" onClick={onClearCompleted}>Clear completed</Button>}
+            </div>
             <div className="mt-4 max-h-80 space-y-3 overflow-auto thin-scrollbar">
               {queue.map((item) => (
-                <div key={item.id} className="rounded-md border border-border bg-[#090c13] p-3">
+                <div key={item.id} className="rounded-lg border border-border bg-white/[0.035] p-3">
                   <div className="flex items-center gap-3">
                     {item.preview ? <img src={item.preview} className="h-10 w-10 rounded object-cover" alt="" /> : <div className="grid h-10 w-10 place-items-center rounded bg-panel-2 text-xs text-muted">File</div>}
-                    <div className="min-w-0 flex-1"><p className="truncate text-sm text-white">{item.file.name}</p><p className="text-xs text-muted">{item.status} - {formatBytes(item.file.size)}</p></div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-white">{item.file.name}</p>
+                      <p className="text-xs text-muted">
+                        {uploadStatusLabel(item)} - {formatBytes(item.file.size)}
+                        {item.status === "uploading" && item.speed ? ` - ${formatBytes(item.speed)}/s${item.etaSeconds ? ` - ${item.etaSeconds}s left` : ""}` : ""}
+                      </p>
+                    </div>
                     {item.status === "failed" && <XCircle className="text-red-300" size={18} />}
                     <button className="rounded p-1 text-muted hover:bg-white/5 hover:text-white" onClick={() => onRemove(item.id)}><X size={16} /></button>
                   </div>
                   <div className="mt-3 h-2 overflow-hidden rounded bg-slate-800"><div className="h-full bg-accent transition-all" style={{ width: `${item.progress}%` }} /></div>
                   <div className="mt-3 flex justify-end gap-2">
-                    <LoadingButton size="sm" loading={item.status === "uploading"} loadingText="Uploading..." disabled={item.status === "success"} onClick={() => onUpload(item)}>{item.status === "failed" ? <><RefreshCw size={14} /> Retry</> : "Upload"}</LoadingButton>
-                    <Button size="sm" variant="ghost" disabled={item.status !== "uploading"} onClick={() => onRemove(item.id)}><Pause size={14} /> Cancel</Button>
+                    {item.status === "failed" && <LoadingButton size="sm" loading={false} onClick={() => onUpload(item)}><RefreshCw size={14} /> Retry</LoadingButton>}
+                    <Button size="sm" variant="ghost" disabled={item.status !== "uploading"} onClick={() => onCancel(item.id)}><Pause size={14} /> Cancel</Button>
                   </div>
                 </div>
               ))}
@@ -549,6 +863,15 @@ function UploadModal({ open, queue, inputRef, onClose, onPick, onFiles, onUpload
       )}
     </AnimatePresence>
   );
+}
+
+function uploadStatusLabel(item: UploadItem) {
+  if (item.status === "queued") return "Queued";
+  if (item.status === "uploading") return `Uploading ${Math.max(item.progress, 1)}%`;
+  if (item.status === "processing") return "Processing";
+  if (item.status === "success") return "Uploaded";
+  if (item.status === "canceled") return "Canceled";
+  return item.error ?? "Failed";
 }
 
 function FolderModal({ open, title = "Create folder", submitLabel = "Create", value, loading, onChange, onClose, onSubmit }: { open: boolean; title?: string; submitLabel?: string; value: string; loading: boolean; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void }) {
@@ -643,12 +966,13 @@ function DetailsPanel({ item, onClose, onCopy }: { item: MediaItem | null; onClo
 }
 
 function DeleteModal({ item, loading, onClose, onConfirm }: { item: MediaItem | null; loading: boolean; onClose: () => void; onConfirm: () => void }) {
+  const isTrashItem = item?.status === "deleted";
   return (
     <AnimatePresence>
       {item && <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
         <Card className="w-full max-w-md border-red-500/30 p-5">
-          <div className="flex items-center gap-3 text-red-300"><Trash2 /><h2 className="font-semibold">Delete media?</h2></div>
-          <p className="mt-3 text-sm leading-6 text-muted">This removes the file from Telegram and deletes the database record. This action cannot be undone.</p>
+          <div className="flex items-center gap-3 text-red-300"><Trash2 /><h2 className="font-semibold">{isTrashItem ? "Delete forever?" : "Move to trash?"}</h2></div>
+          <p className="mt-3 text-sm leading-6 text-muted">{isTrashItem ? "This permanently removes the database record." : "This removes the Telegram message and moves the file record to Trash."}</p>
           <p className="mt-3 truncate rounded bg-[#090c13] p-2 text-sm text-white">{item.originalName}</p>
           <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button><LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete</LoadingButton></div>
         </Card>

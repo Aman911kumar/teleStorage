@@ -193,7 +193,11 @@ export default function Workspaces() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><p className="text-muted">Storage</p><p className="text-white">{formatBytes(workspace.storageUsed)}</p></div>
+                  <div>
+                    <p className="text-muted">Storage</p>
+                    <p className="text-white">{formatBytes(workspace.storageUsed)}</p>
+                    <p className="mt-1 text-xs text-muted">Limit: {workspace.storageLimitBytes > 0 ? formatBytes(workspace.storageLimitBytes) : "Unlimited"}</p>
+                  </div>
                   <div><p className="text-muted">Uploads</p><p className="text-white">{workspace.uploadCount}</p></div>
                 </div>
               </div>

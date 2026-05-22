@@ -36,10 +36,20 @@ const folderCurl = `curl -X POST http://localhost:4000/api/v1/folders \\
   -H "x-api-secret: example_secret" \\
   -d '{"name":"avatars"}'`;
 
+const signedLinks = `curl -X POST http://localhost:4000/api/v1/media/media_id_here/links \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: your_api_key_here" \\
+  -H "x-api-secret: example_secret" \\
+  -d '{"expiresInSeconds":900,"transform":{"width":800,"format":"webp","quality":82}}'`;
+
+const transformUrl = `https://your-domain.com/media/media_id_here/view?w=800&format=webp&q=82&fit=inside`;
+
 const endpoints = [
   ["POST", "/api/v1/upload", "Upload one or more files using multipart form data."],
   ["GET", "/api/v1/files", "List files in the authenticated workspace."],
   ["GET", "/api/v1/media/:id", "Fetch metadata, public URLs and status for one file."],
+  ["HEAD", "/api/v1/media/:id", "Fetch object metadata headers without downloading the file."],
+  ["POST", "/api/v1/media/:id/links", "Generate expiring view, download and thumbnail URLs."],
   ["DELETE", "/api/v1/media/:id", "Delete media from Telegram and MongoDB."],
   ["POST", "/api/v1/folders", "Create a folder for organizing uploads."],
   ["GET", "/api/v1/folders", "List folders, optionally filtered by parentId."]
@@ -95,6 +105,8 @@ export default function Docs() {
           <CodeBlock title="Upload with curl" value={uploadCurl} />
           <CodeBlock title="Upload from JavaScript" value={jsUpload} />
           <CodeBlock title="Create folder" value={folderCurl} />
+          <CodeBlock title="Generate signed links" value={signedLinks} />
+          <CodeBlock title="Image transformation URL" value={transformUrl} />
 
           <Card id="endpoints" className="p-5">
             <h2 className="font-semibold text-white">API endpoints</h2>

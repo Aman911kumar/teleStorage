@@ -104,6 +104,11 @@ export class TelegramStorageProvider implements StorageProvider {
         chat_id: this.channelId,
         message_id: messageId
       })
+    }).catch((error: unknown) => {
+      if (error instanceof AppError && (error.code === "TELEGRAM_MESSAGE_NOT_FOUND" || /message to delete not found/i.test(error.message))) {
+        return { ok: true, result: true } as TelegramDeleteResponse;
+      }
+      throw error;
     });
 
     if (!body.ok || body.result !== true) {
@@ -132,6 +137,16 @@ export class TelegramStorageProvider implements StorageProvider {
 
   async generateSignedUrl(providerFileId: string): Promise<string> {
     return this.getFileUrl(providerFileId);
+  }
+
+  async fileExists(providerFileId: string): Promise<boolean> {
+    try {
+      await this.getTelegramFile(providerFileId);
+      return true;
+    } catch (error) {
+      if (error instanceof AppError && error.code === "TELEGRAM_GET_FILE_FAILED") return false;
+      throw error;
+    }
   }
 
   private resolveMethod(input: UploadInput) {

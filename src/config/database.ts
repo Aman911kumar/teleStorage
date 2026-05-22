@@ -24,12 +24,15 @@ export async function connectDatabase() {
 
 async function backfillWorkspaceApiAccess() {
   const workspaces = await WorkspaceModel.find({
-    $or: [{ publicProjectId: { $exists: false } }, { uploadTokenHash: { $exists: false } }]
+    $or: [{ publicProjectId: { $exists: false } }, { uploadTokenHash: { $exists: false } }, { storageLimitBytes: { $exists: false } }]
   });
 
   for (const workspace of workspaces) {
     if (!workspace.publicProjectId) workspace.publicProjectId = generatePublicProjectId();
     if (!workspace.uploadTokenHash) workspace.uploadTokenHash = hashUploadToken(generateUploadToken());
+    if (typeof workspace.storageLimitBytes !== "number") {
+      workspace.storageLimitBytes = env.DEFAULT_WORKSPACE_STORAGE_LIMIT_GB > 0 ? env.DEFAULT_WORKSPACE_STORAGE_LIMIT_GB * 1024 * 1024 * 1024 : 0;
+    }
     await workspace.save();
   }
 

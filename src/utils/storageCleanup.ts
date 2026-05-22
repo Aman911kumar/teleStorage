@@ -29,12 +29,12 @@ async function walkFiles(root: string): Promise<FileEntry[]> {
   }
 }
 
-async function removeEmptyDirs(root: string) {
+async function removeEmptyDirs(root: string, removeSelf = false) {
   try {
     const entries = await fs.readdir(root, { withFileTypes: true });
-    await Promise.all(entries.filter((entry) => entry.isDirectory()).map((entry) => removeEmptyDirs(path.join(root, entry.name))));
+    await Promise.all(entries.filter((entry) => entry.isDirectory()).map((entry) => removeEmptyDirs(path.join(root, entry.name), true)));
     const remaining = await fs.readdir(root);
-    if (remaining.length === 0) await fs.rmdir(root).catch(() => undefined);
+    if (removeSelf && remaining.length === 0) await fs.rmdir(root).catch(() => undefined);
   } catch {
     // Best effort cleanup only.
   }
@@ -77,6 +77,8 @@ export async function cleanupStorage() {
     freedBytes += file.size;
   }
 
+  await fs.mkdir(env.UPLOAD_TMP_DIR, { recursive: true });
+  await fs.mkdir(env.LOCAL_CACHE_DIR, { recursive: true });
   await Promise.all([removeEmptyDirs(env.UPLOAD_TMP_DIR), removeEmptyDirs(env.LOCAL_CACHE_DIR)]);
 
   if (removedTemp || removedCache || freedBytes) {

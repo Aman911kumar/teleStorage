@@ -2,12 +2,12 @@
 
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --color-background: #07080c;
-  --color-panel: #0d1017;
-  --color-panel-2: #121722;
-  --color-border: #222838;
-  --color-muted: #8b95a7;
-  --color-accent: #5b8cff;
+  --color-background: #07090d;
+  --color-panel: #0d1118;
+  --color-panel-2: #121824;
+  --color-border: #242b3a;
+  --color-muted: #8f9aab;
+  --color-accent: #6d8dff;
 }
 
 * {
@@ -24,8 +24,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 20% 0%, rgba(91, 140, 255, 0.18), transparent 28rem),
-    linear-gradient(180deg, #080a10 0%, #07080c 34rem);
+    radial-gradient(circle at 18% -10%, rgba(109, 141, 255, 0.16), transparent 30rem),
+    radial-gradient(circle at 80% 0%, rgba(42, 194, 255, 0.08), transparent 26rem),
+    linear-gradient(180deg, #080b11 0%, #07090d 36rem);
   color: #f5f7fb;
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
@@ -39,8 +40,23 @@ select {
   font: inherit;
 }
 
+select {
+  color: #f5f7fb;
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background: #0d1118;
+  color: #f5f7fb;
+}
+
 button {
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 ::selection {
@@ -56,12 +72,31 @@ button {
 }
 
 .focus-ring:focus-visible {
-  box-shadow: 0 0 0 3px rgba(91, 140, 255, 0.28);
+  box-shadow: 0 0 0 3px rgba(109, 141, 255, 0.28);
 }
 
 .thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #2a3243 transparent;
+}
+
+.surface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    #0d1118;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.surface-muted {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    #0a0d13;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.premium-divider {
+  border-color: rgba(148, 163, 184, 0.14);
 }
 
 @keyframes shake {

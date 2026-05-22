@@ -544,6 +544,81 @@ Response:
 }
 ```
 
+### HEAD `/api/v1/media/:id`
+
+Returns object metadata headers without downloading the file body.
+
+Headers:
+
+```http
+Content-Type: image/webp
+Content-Length: 94512
+ETag: "checksum"
+```
+
+### POST `/api/v1/media/:id/links`
+
+Generates expiring URLs for private delivery. If image transform options are included, the transform parameters are bound into the token so they cannot be changed without invalidating the link.
+
+Request:
+
+```json
+{
+  "expiresInSeconds": 900,
+  "transform": {
+    "width": 800,
+    "height": 600,
+    "format": "webp",
+    "quality": 82,
+    "fit": "inside"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "expiresInSeconds": 900,
+    "viewUrl": "/media/665f10000000000000000001/view?token=...&w=800&h=600&q=82&format=webp&fit=inside",
+    "downloadUrl": "/media/665f10000000000000000001/download?token=...",
+    "thumbnailUrl": "/media/665f10000000000000000001/thumb?token=..."
+  }
+}
+```
+
+## Media Delivery URLs
+
+### GET `/media/:id/view`
+
+Streams the file through the backend Telegram proxy. Supports image previews, video range requests, `ETag`, `If-None-Match`, `Cache-Control`, `Accept-Ranges`, and inline display.
+
+Image transformations are available through query params:
+
+| Param | Values | Description |
+| --- | --- | --- |
+| `w` / `width` | 1-4096 | Resize width |
+| `h` / `height` | 1-4096 | Resize height |
+| `format` | `webp`, `jpeg`, `png`, `avif` | Output format |
+| `q` / `quality` | 1-100 | Output quality |
+| `fit` | `inside`, `cover`, `contain`, `outside` | Resize mode |
+
+Example:
+
+```txt
+/media/665f10000000000000000001/view?w=800&format=webp&q=82&fit=inside
+```
+
+### GET `/media/:id/download`
+
+Streams the file with `Content-Disposition: attachment`.
+
+### GET `/media/:id/thumb`
+
+Streams the generated thumbnail when available.
+
 ### PATCH `/api/v1/media/:id`
 
 Renames or moves a file.

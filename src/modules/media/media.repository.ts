@@ -23,6 +23,10 @@ export class MediaRepository {
   }
 
   deleteById(id: string) {
+    return MediaModel.findByIdAndUpdate(id, { status: "deleted", folderId: null }, { new: true });
+  }
+
+  purgeById(id: string) {
     return MediaModel.findByIdAndDelete(id);
   }
 
@@ -68,11 +72,17 @@ export class MediaRepository {
     return MediaModel.find({ status: "failed" }).sort({ updatedAt: -1 }).limit(100);
   }
 
-  recent(uploadedBy: string, limit = 50) {
-    return MediaModel.find({ uploadedBy, status: { $ne: "deleted" } })
+  recent(uploadedBy: string, limit = 100, options: { includeDeleted?: boolean } = {}) {
+    const filter: FilterQuery<MediaDocument> = { uploadedBy };
+    if (!options.includeDeleted) filter.status = { $ne: "deleted" };
+    return MediaModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .select("originalName filename mimeType size visibility status createdAt thumbnail tags folderId customMetadata mediaType metadata");
+  }
+
+  listForWorkspaceOwner(workspaceId: string, uploadedBy: string) {
+    return MediaModel.find({ workspaceId, uploadedBy, status: { $ne: "deleted" } });
   }
 
   listForWorkspace(workspaceId: string, options: { folderId?: string; limit?: number } = {}) {

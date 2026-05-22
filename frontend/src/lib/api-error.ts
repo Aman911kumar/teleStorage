@@ -17,6 +17,8 @@ const messages: Record<string, string> = {
   FORBIDDEN: "Your session expired. Please sign in again.",
   UNSUPPORTED_MEDIA_TYPE: "This file type is not supported.",
   FILE_REQUIRED: "Choose a file before uploading.",
+  UPLOAD_TEMP_FILE_MISSING: "Upload was interrupted before processing. Please retry the upload.",
+  WORKSPACE_STORAGE_LIMIT_EXCEEDED: "This upload exceeds the workspace storage limit.",
   CORS_ORIGIN_BLOCKED: "This frontend URL is not allowed by the backend CORS settings."
 };
 

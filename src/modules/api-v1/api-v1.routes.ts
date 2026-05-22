@@ -24,6 +24,19 @@ const updateMediaSchema = z.object({
   originalName: z.string().min(1).max(180).optional()
 });
 
+const signedLinkSchema = z.object({
+  expiresInSeconds: z.coerce.number().int().min(60).max(604800).default(900),
+  transform: z
+    .object({
+      width: z.coerce.number().int().positive().max(4096).optional(),
+      height: z.coerce.number().int().positive().max(4096).optional(),
+      quality: z.coerce.number().int().min(1).max(100).optional(),
+      format: z.enum(["jpeg", "webp", "png", "avif"]).optional(),
+      fit: z.enum(["cover", "contain", "inside", "outside"]).optional()
+    })
+    .optional()
+});
+
 function filesFromRequest(req: AuthenticatedRequest) {
   if (Array.isArray(req.files)) return req.files;
   if (req.files && typeof req.files === "object") {
@@ -144,6 +157,30 @@ apiV1Router.get(
         createdAt: media.createdAt
       }
     });
+  })
+);
+
+apiV1Router.head(
+  "/api/v1/media/:id",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    requireApiScope(req, "read");
+    const media = await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
+    res
+      .setHeader("Content-Type", media.mimeType)
+      .setHeader("Content-Length", String(media.size))
+      .setHeader("ETag", `"${media.checksum}"`)
+      .status(200)
+      .send();
+  })
+);
+
+apiV1Router.post(
+  "/api/v1/media/:id/links",
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    requireApiScope(req, "read");
+    const media = await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
+    const body = signedLinkSchema.parse(req.body);
+    res.json({ success: true, data: mediaService.createSignedLinks(media.id, body.expiresInSeconds, body.transform) });
   })
 );
 

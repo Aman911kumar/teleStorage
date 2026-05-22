@@ -1,5 +1,10 @@
 import { Schema, model, type InferSchemaType, Types } from "mongoose";
 import { generatePublicProjectId, generateUploadToken, hashUploadToken } from "../../utils/apiTokens.js";
+import { env } from "../../config/env.js";
+
+function defaultStorageLimitBytes() {
+  return env.DEFAULT_WORKSPACE_STORAGE_LIMIT_GB > 0 ? env.DEFAULT_WORKSPACE_STORAGE_LIMIT_GB * 1024 * 1024 * 1024 : 0;
+}
 
 const workspaceSchema = new Schema(
   {
@@ -12,6 +17,7 @@ const workspaceSchema = new Schema(
     telegramBotUsername: { type: String, required: true },
     telegramChannelTitle: String,
     storageUsed: { type: Number, default: 0 },
+    storageLimitBytes: { type: Number, default: defaultStorageLimitBytes },
     bandwidthUsed: { type: Number, default: 0 },
     uploadCount: { type: Number, default: 0 },
     imageCount: { type: Number, default: 0 },

@@ -11,7 +11,10 @@ export function Card({ className, ...props }: CardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.28 }}
-      className={cn("rounded-lg border border-border bg-panel/88 shadow-[0_16px_60px_rgba(0,0,0,0.18)]", className)}
+      className={cn(
+        "surface rounded-lg text-slate-100 transition-colors duration-200",
+        className
+      )}
       {...props}
     />
   );

@@ -6,15 +6,15 @@ type LoadingButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean;
   loadingText?: string;
   children: ReactNode;
-  variant?: "primary" | "secondary" | "ghost";
-  size?: "sm" | "md" | "lg";
+  variant?: "primary" | "secondary" | "ghost" | "destructive" | "outline";
+  size?: "sm" | "md" | "lg" | "icon";
 };
 
 export function LoadingButton({ loading, loadingText, children, disabled, ...props }: LoadingButtonProps) {
   return (
     <Button disabled={disabled || loading} aria-busy={loading} {...props}>
       {loading && <Loader2 className="animate-spin" size={16} />}
-      <span className="inline-block min-w-[inherit]">{loading ? loadingText ?? "Loading..." : children}</span>
+      {loading ? loadingText ?? "Loading..." : children}
     </Button>
   );
 }

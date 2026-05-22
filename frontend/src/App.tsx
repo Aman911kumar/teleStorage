@@ -87,7 +87,14 @@ export default function App() {
         position="top-right"
         toastOptions={{
           duration: 3500,
-          style: { background: "#111722", color: "#fff", border: "1px solid #222838" },
+          style: {
+            background: "rgba(13,17,24,0.94)",
+            color: "#fff",
+            border: "1px solid rgba(148,163,184,0.18)",
+            borderRadius: "10px",
+            boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+            backdropFilter: "blur(16px)"
+          },
           success: { iconTheme: { primary: "#34d399", secondary: "#071018" } },
           error: { iconTheme: { primary: "#fb7185", secondary: "#071018" } }
         }}

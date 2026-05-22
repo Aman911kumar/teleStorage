@@ -11,7 +11,12 @@ const allowedMimes = new Set([
 ]);
 
 export async function validateFileSignature(path: string, claimedMime: string) {
-  const detected = await fileTypeFromFile(path);
+  const detected = await fileTypeFromFile(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") {
+      throw new AppError("Upload temp file was not available. Please retry the upload.", 400, "UPLOAD_TEMP_FILE_MISSING");
+    }
+    throw error;
+  });
   const mime = detected?.mime ?? claimedMime;
   const allowed = allowedMimePrefixes.some((prefix) => mime.startsWith(prefix)) || allowedMimes.has(mime);
   if (!allowed) {

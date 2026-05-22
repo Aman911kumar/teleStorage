@@ -10,6 +10,14 @@ const updateMediaSchema = z.object({
   originalName: z.string().min(1).max(180).optional()
 });
 
+const transformSchema = z.object({
+  width: z.coerce.number().int().positive().max(4096).optional(),
+  height: z.coerce.number().int().positive().max(4096).optional(),
+  quality: z.coerce.number().int().min(1).max(100).optional(),
+  format: z.enum(["jpeg", "webp", "png", "avif"]).optional(),
+  fit: z.enum(["cover", "contain", "inside", "outside"]).optional()
+});
+
 function parseJsonField<T>(value: unknown, fallback: T): T {
   if (!value || typeof value !== "string") return fallback;
   try {
@@ -26,6 +34,26 @@ function uploadOptions(req: AuthenticatedRequest) {
     tags: parseJsonField<string[]>(req.body.tags, []),
     metadata: parseJsonField<Record<string, string>>(req.body.metadata, {})
   };
+}
+
+function imageTransform(req: AuthenticatedRequest) {
+  const width = req.query.w ?? req.query.width;
+  const height = req.query.h ?? req.query.height;
+  const quality = req.query.q ?? req.query.quality;
+  const raw = {
+    width,
+    height,
+    quality,
+    format: req.query.format,
+    fit: req.query.fit
+  };
+  const hasTransform = Object.values(raw).some((value) => value !== undefined);
+  return hasTransform ? transformSchema.parse(raw) : undefined;
+}
+
+function ifNoneMatch(req: AuthenticatedRequest) {
+  const value = req.headers["if-none-match"];
+  return Array.isArray(value) ? value[0] : value;
 }
 
 export class MediaController {
@@ -60,21 +88,29 @@ export class MediaController {
   };
 
   list = async (req: AuthenticatedRequest, res: Response) => {
-    res.json({ success: true, data: await mediaService.recentUploads(req.user!.id) });
+    res.json({ success: true, data: await mediaService.recentUploads(req.user!.id, req.query.includeDeleted === "true") });
   };
 
   stream = async (req: AuthenticatedRequest, res: Response) => {
-    await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range);
+    await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, {
+      ifNoneMatch: ifNoneMatch(req),
+      transform: imageTransform(req)
+    });
   };
 
   view = async (req: AuthenticatedRequest, res: Response) => {
     await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, {
-      requireAccess: false
+      requireAccess: false,
+      ifNoneMatch: ifNoneMatch(req),
+      transform: imageTransform(req)
     });
   };
 
   download = async (req: AuthenticatedRequest, res: Response) => {
-    await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, { download: true });
+    await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, {
+      download: true,
+      ifNoneMatch: ifNoneMatch(req)
+    });
   };
 
   thumbnail = async (req: AuthenticatedRequest, res: Response) => {

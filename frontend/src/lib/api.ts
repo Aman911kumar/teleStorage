@@ -71,6 +71,7 @@ export type Workspace = {
   telegramBotTokenMasked: string;
   telegramChannelTitle?: string;
   storageUsed: number;
+  storageLimitBytes: number;
   bandwidthUsed: number;
   uploadCount: number;
   imageCount: number;
@@ -149,7 +150,7 @@ export type Analytics = {
   activity: unknown[];
 };
 
-export async function uploadMedia(file: File, workspaceId?: string, onProgress?: (value: number) => void, signal?: AbortSignal, options?: { folderId?: string; tags?: string[]; visibility?: "public" | "private"; metadata?: Record<string, string> }) {
+export async function uploadMedia(file: File, workspaceId?: string, onProgress?: (value: number, loaded?: number, total?: number) => void, signal?: AbortSignal, options?: { folderId?: string; tags?: string[]; visibility?: "public" | "private"; metadata?: Record<string, string> }) {
   const form = new FormData();
   form.append("file", file);
   if (workspaceId) form.append("workspaceId", workspaceId);
@@ -159,9 +160,10 @@ export async function uploadMedia(file: File, workspaceId?: string, onProgress?:
   if (options?.metadata) form.append("metadata", JSON.stringify(options.metadata));
   const { data } = await api.post("/api/upload", form, {
     headers: { "Content-Type": "multipart/form-data" },
+    timeout: 0,
     signal,
     onUploadProgress: (event) => {
-      if (event.total) onProgress?.(Math.round((event.loaded / event.total) * 100));
+      if (event.total) onProgress?.(Math.round((event.loaded / event.total) * 100), event.loaded, event.total);
     }
   });
   return data.data as { id: string; url: string; signedUrl: string; viewUrl: string; thumbUrl: string; downloadUrl: string; duplicate: boolean };
@@ -191,6 +193,11 @@ export async function deleteWorkspace(id: string) {
   await api.delete(`/api/workspaces/${id}`);
 }
 
+export async function syncWorkspace(id: string) {
+  const { data } = await api.post(`/api/workspaces/${id}/sync`);
+  return data.data as { checked: number; removed: number; removedIds: string[] };
+}
+
 export async function rotateWorkspaceUploadToken(id: string) {
   const { data } = await api.post(`/api/workspaces/${id}/upload-token/rotate`);
   return data.data as Workspace & { uploadToken: string };
@@ -206,8 +213,8 @@ export async function validateWorkspace(input: { telegramBotToken: string; teleg
   };
 }
 
-export async function getMedia() {
-  const { data } = await api.get("/api/media");
+export async function getMedia(options?: { includeDeleted?: boolean }) {
+  const { data } = await api.get("/api/media", { params: { includeDeleted: options?.includeDeleted || undefined } });
   return data.data as MediaItem[];
 }
 
@@ -227,6 +234,11 @@ export async function getFolders(workspaceId: string, parentId?: string) {
 
 export async function createFolder(input: { workspaceId: string; name: string; parentId?: string }) {
   const { data } = await api.post("/api/folders", input);
+  return data.data as FolderItem;
+}
+
+export async function ensureFolderPath(input: { workspaceId: string; path: string; parentId?: string }) {
+  const { data } = await api.post("/api/folders/ensure", input);
   return data.data as FolderItem;
 }
 
