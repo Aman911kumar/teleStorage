@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import crypto from "node:crypto";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
@@ -30,6 +31,9 @@ const verifySchema = z.object({ token: z.string().min(16) });
 const profileSchema = z.object({ name: z.string().trim().min(2).max(80).optional(), email: z.string().email().optional() });
 const passwordSchema = z.object({ currentPassword: z.string().min(8), nextPassword: z.string().min(8) });
 
+type GoogleTokenResponse = { access_token?: string; error?: string; error_description?: string };
+type GoogleUserResponse = { id?: string; email?: string; name?: string; picture?: string; verified_email?: boolean };
+
 function refreshCookieOptions() {
   return {
     httpOnly: true,
@@ -54,6 +58,16 @@ function clearRefreshCookie(res: Response) {
   res.clearCookie("telestore_refresh", { ...refreshCookieOptions(), maxAge: undefined });
 }
 
+function oauthStateCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/api/auth/google",
+    maxAge: 10 * 60 * 1000
+  };
+}
+
 function meta(req: AuthenticatedRequest) {
   return { userAgent: req.header("user-agent"), ip: req.ip };
 }
@@ -62,6 +76,93 @@ function sendSession(res: Response, session: Awaited<ReturnType<AuthService["log
   setRefreshCookie(res, session.refreshToken);
   res.json({ success: true, data: { token: session.accessToken, accessToken: session.accessToken, user: session.user } });
 }
+
+function googleCallbackUrl() {
+  return env.GOOGLE_CALLBACK_URL ?? `${env.APP_BASE_URL}/api/auth/google/callback`;
+}
+
+async function readJson<T>(response: globalThis.Response, fallback: string) {
+  const text = await response.text();
+  if (!text) throw new Error(fallback);
+  return JSON.parse(text) as T;
+}
+
+async function exchangeGoogleCode(code: string) {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID!,
+      client_secret: env.GOOGLE_CLIENT_SECRET!,
+      redirect_uri: googleCallbackUrl(),
+      grant_type: "authorization_code"
+    })
+  });
+  const data = await readJson<GoogleTokenResponse>(response, "Google returned an empty token response.");
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error_description ?? data.error ?? "Google token exchange failed.");
+  }
+  return data.access_token;
+}
+
+async function fetchGoogleProfile(accessToken: string) {
+  const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const data = await readJson<GoogleUserResponse>(response, "Google returned an empty profile response.");
+  if (!response.ok || !data.id || !data.email) throw new Error("Google profile is missing required account details.");
+  return data;
+}
+
+authRouter.get(
+  "/api/auth/google",
+  authLimiter,
+  asyncHandler(async (_req, res) => {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      res.status(501).json({ success: false, error: { code: "GOOGLE_AUTH_NOT_CONFIGURED", message: "Google login is not configured." } });
+      return;
+    }
+    const state = crypto.randomBytes(24).toString("base64url");
+    res.cookie("telestore_google_state", state, oauthStateCookieOptions());
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
+    url.searchParams.set("redirect_uri", googleCallbackUrl());
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", "openid email profile");
+    url.searchParams.set("state", state);
+    url.searchParams.set("prompt", "select_account");
+    res.redirect(url.toString());
+  })
+);
+
+authRouter.get(
+  "/api/auth/google/callback",
+  authLimiter,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const cookieState = readCookie(req, "telestore_google_state");
+    res.clearCookie("telestore_google_state", { ...oauthStateCookieOptions(), maxAge: undefined });
+    if (!code || !state || !cookieState || state !== cookieState) {
+      res.redirect(`${env.FRONTEND_APP_URL}/login?error=google_state`);
+      return;
+    }
+
+    try {
+      const accessToken = await exchangeGoogleCode(code);
+      const profile = await fetchGoogleProfile(accessToken);
+      const session = await service.loginWithGoogle(
+        { id: profile.id!, email: profile.email!, name: profile.name, picture: profile.picture, verifiedEmail: profile.verified_email },
+        meta(req)
+      );
+      setRefreshCookie(res, session.refreshToken);
+      res.redirect(`${env.FRONTEND_APP_URL}/auth/callback`);
+    } catch {
+      res.redirect(`${env.FRONTEND_APP_URL}/login?error=google_failed`);
+    }
+  })
+);
 
 authRouter.post(
   ["/auth/register", "/api/auth/register"],

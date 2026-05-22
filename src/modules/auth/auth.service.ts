@@ -12,6 +12,7 @@ const refreshTokenDays = 30;
 const accessTokenMinutes = 15;
 
 type RequestMeta = { userAgent?: string; ip?: string };
+type GoogleProfile = { id: string; email: string; name?: string; picture?: string; verifiedEmail?: boolean };
 
 function sha256(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -70,6 +71,34 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new AppError("Incorrect email or password.", 401, "INVALID_CREDENTIALS");
     }
+    return this.createSession(user, meta);
+  }
+
+  async loginWithGoogle(profile: GoogleProfile, meta: RequestMeta) {
+    const email = profile.email.toLowerCase();
+    let user = await UserModel.findOne({ $or: [{ googleId: profile.id }, { email }] });
+    if (!user) {
+      user = await UserModel.create({
+        name: profile.name || email.split("@")[0],
+        email,
+        passwordHash: await bcrypt.hash(randomToken(), 12),
+        googleId: profile.id,
+        authProvider: "google",
+        emailVerified: profile.verifiedEmail ?? true,
+        avatarUrl: profile.picture,
+        role: "user",
+        quotaBytes: 5_000_000_000
+      });
+    } else {
+      user.googleId = user.googleId || profile.id;
+      user.authProvider = "google";
+      user.emailVerified = user.emailVerified || Boolean(profile.verifiedEmail);
+      user.name = user.name || profile.name || email.split("@")[0];
+      user.avatarUrl = user.avatarUrl || profile.picture;
+      await user.save();
+    }
+
+    if (user.status !== "active") throw new AppError("Account is unavailable.", 403, "ACCOUNT_UNAVAILABLE");
     return this.createSession(user, meta);
   }
 

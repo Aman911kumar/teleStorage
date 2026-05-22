@@ -3,8 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, GitBranch, Mail } from "lucide-react";
-import { login, notifyError } from "@/lib/api";
+import { Eye, EyeOff, Mail } from "lucide-react";
+import { login, notifyError, startGoogleLogin } from "@/lib/api";
 import { useAuthStore } from "@/store/auth-store";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -39,10 +39,7 @@ export default function Login() {
 
   return (
     <AuthCard title="Welcome back" subtitle="Sign in with a protected session and continue managing your Telegram-backed media cloud." footer={<><Link to="/forgot-password" className="text-accent">Forgot password?</Link><span className="mx-2">-</span><Link to="/signup" className="text-accent">Create account</Link></>}>
-      <div className="grid grid-cols-2 gap-3">
-        <Button type="button" variant="secondary" disabled><GitBranch size={16} /> GitHub</Button>
-        <Button type="button" variant="secondary" disabled><Mail size={16} /> Google</Button>
-      </div>
+      <Button type="button" variant="secondary" className="w-full" onClick={startGoogleLogin}><Mail size={16} /> Continue with Google</Button>
       <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.24em] text-muted"><span className="h-px flex-1 bg-border" /> Email <span className="h-px flex-1 bg-border" /></div>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <label className="block space-y-1.5">

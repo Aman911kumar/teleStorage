@@ -69,6 +69,10 @@ export async function login(email: string, password: string, remember = true) {
   return data.data as AuthSession;
 }
 
+export function startGoogleLogin() {
+  window.location.href = `${api.defaults.baseURL}/api/auth/google`;
+}
+
 export async function register(input: { name?: string; email: string; password: string }) {
   const { data } = await api.post("/api/auth/register", input);
   return data.data as AuthSession;

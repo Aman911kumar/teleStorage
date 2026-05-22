@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { ProtectedRoute } from "@/router/protected-route";
+import { AuthRoute, ProtectedRoute } from "@/router/protected-route";
 import { PublicLayout } from "@/layouts/public-layout";
 import { AuthLayout } from "@/layouts/auth-layout";
 import { DashboardLayout } from "@/layouts/dashboard-layout";
@@ -20,6 +20,7 @@ const Signup = lazy(() => import("@/pages/auth/signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/forgot-password"));
 const ResetPassword = lazy(() => import("@/pages/auth/reset-password"));
 const VerifyEmail = lazy(() => import("@/pages/auth/verify-email"));
+const AuthCallback = lazy(() => import("@/pages/auth/auth-callback"));
 const Dashboard = lazy(() => import("@/pages/app/dashboard"));
 const SimpleAppPage = lazy(() => import("@/pages/app/simple-app-page"));
 const Workspaces = lazy(() => import("@/pages/app/workspaces"));
@@ -61,12 +62,15 @@ export default function App() {
           <Route path="privacy" element={<MarketingPage title="Privacy Policy" />} />
           <Route path="terms" element={<MarketingPage title="Terms" />} />
         </Route>
-        <Route element={<AuthLayout />}>
-          <Route path="login" element={<Login />} />
-          <Route path="signup" element={<Signup />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="reset-password" element={<ResetPassword />} />
-          <Route path="verify-email" element={<VerifyEmail />} />
+        <Route element={<AuthRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route path="login" element={<Login />} />
+            <Route path="signup" element={<Signup />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password" element={<ResetPassword />} />
+            <Route path="verify-email" element={<VerifyEmail />} />
+            <Route path="auth/callback" element={<AuthCallback />} />
+          </Route>
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>

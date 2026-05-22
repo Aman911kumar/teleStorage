@@ -1,7 +1,8 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, Bell, BookOpen, ChevronDown, Command, Database, FileUp, Gauge, HardDrive, Home, Image, KeyRound, Menu, Search, Settings, Shield, User, X } from "lucide-react";
+import { BarChart3, Bell, BookOpen, ChevronDown, Command, Database, FileUp, Gauge, HardDrive, Home, Image, KeyRound, LogOut, Menu, Search, Settings, Shield, User, X } from "lucide-react";
 import { CommandMenu } from "@/components/navigation/command-menu";
 import { Button } from "@/components/ui/button";
+import { logoutSession, notifyError } from "@/lib/api";
 import { useAuthStore } from "@/store/auth-store";
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
@@ -108,10 +109,23 @@ export function DashboardLayout() {
               <FileUp size={15} /> Upload
             </Button>
             <Button variant="ghost" size="icon" aria-label="Notifications"><Bell size={18} /></Button>
-            <button className="flex h-10 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-2.5 text-sm text-white transition hover:bg-white/5.5">
-              <span className="grid h-6 w-6 place-items-center rounded bg-accent/15 text-xs text-accent">{(user?.name ?? "U").slice(0, 1).toUpperCase()}</span>
-              <span className="hidden max-w-28 truncate sm:block">{user?.name ?? "User"}</span>
-            </button>
+            <div className="flex h-10 items-center overflow-hidden rounded-md border border-border bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <Link to="/app/profile" className="flex h-full items-center gap-2 px-2.5 text-sm text-white transition hover:bg-white/5.5">
+                <span className="grid h-6 w-6 place-items-center rounded bg-accent/15 text-xs text-accent">{(user?.name ?? "U").slice(0, 1).toUpperCase()}</span>
+                <span className="hidden max-w-28 truncate sm:block">{user?.name ?? "User"}</span>
+              </Link>
+              <span className="h-5 w-px bg-border" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-full w-10 rounded-none text-muted hover:bg-red-500/10 hover:text-red-200"
+                aria-label="Logout"
+                title="Logout"
+                onClick={() => logoutSession().catch((error) => notifyError(error, "Unable to logout."))}
+              >
+                <LogOut size={15} />
+              </Button>
+            </div>
           </div>
         </header>
         <Outlet />
