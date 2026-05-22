@@ -17,8 +17,19 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && original && !original._retry && !String(original.url).includes("/api/auth/")) {
+      original._retry = true;
+      try {
+        const { data } = await api.post("/api/auth/refresh");
+        useAuthStore.getState().setSession(data.data.token, data.data.user);
+        original.headers.Authorization = `Bearer ${data.data.token}`;
+        return api(original);
+      } catch {
+        useAuthStore.getState().logout();
+      }
+    } else if (error.response?.status === 403) {
       useAuthStore.getState().logout();
     }
     error.friendlyMessage = getApiErrorMessage(error);
@@ -50,14 +61,73 @@ export function notifyWarning(message: string) {
   toast(message, { icon: "!" });
 }
 
-export async function login(email: string, password: string) {
-  const { data } = await api.post("/api/auth/login", { email, password });
-  return data.data as { token: string };
+export type AuthUser = { id: string; name: string; email: string; role: "user" | "admin"; emailVerified: boolean; avatarUrl?: string };
+export type AuthSession = { token: string; accessToken: string; user: AuthUser; verificationToken?: string };
+
+export async function login(email: string, password: string, remember = true) {
+  const { data } = await api.post("/api/auth/login", { email, password, remember });
+  return data.data as AuthSession;
 }
 
-export async function register(email: string, password: string) {
-  const { data } = await api.post("/api/auth/register", { email, password });
-  return data.data as { token: string };
+export async function register(input: { name?: string; email: string; password: string }) {
+  const { data } = await api.post("/api/auth/register", input);
+  return data.data as AuthSession;
+}
+
+export async function logoutSession() {
+  await api.post("/api/auth/logout");
+  useAuthStore.getState().logout();
+}
+
+export async function getMe() {
+  const { data } = await api.get("/api/auth/me");
+  return data.data as AuthUser;
+}
+
+export async function forgotPassword(email: string) {
+  const { data } = await api.post("/api/auth/forgot-password", { email });
+  return data.data as { message: string; resetToken?: string };
+}
+
+export async function resetPassword(token: string, password: string) {
+  await api.post("/api/auth/reset-password", { token, password });
+}
+
+export async function verifyEmail(token: string) {
+  await api.post("/api/auth/verify-email", { token });
+}
+
+export async function resendVerification() {
+  const { data } = await api.post("/api/auth/resend-verification");
+  return data.data as { verificationToken?: string };
+}
+
+export async function updateProfile(input: { name?: string; email?: string }) {
+  const { data } = await api.patch("/api/auth/profile", input);
+  return data.data as AuthUser;
+}
+
+export async function changePassword(input: { currentPassword: string; nextPassword: string }) {
+  await api.post("/api/auth/change-password", input);
+}
+
+export type AccountSession = {
+  id: string;
+  userAgent: string;
+  ip: string;
+  lastUsedAt: string;
+  createdAt: string;
+  expiresAt: string;
+  revoked: boolean;
+};
+
+export async function getAccountSessions() {
+  const { data } = await api.get("/api/auth/sessions");
+  return data.data as AccountSession[];
+}
+
+export async function revokeAccountSession(id: string) {
+  await api.delete(`/api/auth/sessions/${id}`);
 }
 
 export type Workspace = {

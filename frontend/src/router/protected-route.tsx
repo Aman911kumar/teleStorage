@@ -1,7 +1,35 @@
+import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
+import { api } from "@/lib/api";
+import { PageLoading } from "@/components/page-loading";
 import { useAuthStore } from "@/store/auth-store";
 
 export function ProtectedRoute() {
   const token = useAuthStore((state) => state.token);
-  return token ? <Outlet /> : <Navigate to="/login" replace />;
+  const setSession = useAuthStore((state) => state.setSession);
+  const logout = useAuthStore((state) => state.logout);
+  const [refreshAttempted, setRefreshAttempted] = useState(Boolean(token));
+
+  useEffect(() => {
+    let active = true;
+    if (token || refreshAttempted) {
+      return;
+    }
+    api.post("/api/auth/refresh")
+      .then(({ data }) => {
+        if (active) setSession(data.data.token, data.data.user);
+      })
+      .catch(() => {
+        if (active) logout();
+      })
+      .finally(() => {
+        if (active) setRefreshAttempted(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [logout, refreshAttempted, setSession, token]);
+
+  if (!token && !refreshAttempted) return <PageLoading cards={4} />;
+  return token || useAuthStore.getState().token ? <Outlet /> : <Navigate to="/login" replace />;
 }

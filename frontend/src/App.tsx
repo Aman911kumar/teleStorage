@@ -18,6 +18,7 @@ const Contact = lazy(() => import("@/pages/public/contact"));
 const Login = lazy(() => import("@/pages/auth/login"));
 const Signup = lazy(() => import("@/pages/auth/signup"));
 const ForgotPassword = lazy(() => import("@/pages/auth/forgot-password"));
+const ResetPassword = lazy(() => import("@/pages/auth/reset-password"));
 const VerifyEmail = lazy(() => import("@/pages/auth/verify-email"));
 const Dashboard = lazy(() => import("@/pages/app/dashboard"));
 const SimpleAppPage = lazy(() => import("@/pages/app/simple-app-page"));
@@ -26,6 +27,7 @@ const ApiAccess = lazy(() => import("@/pages/app/api-access"));
 const Analytics = lazy(() => import("@/pages/app/analytics"));
 const Docs = lazy(() => import("@/pages/app/docs"));
 const Media = lazy(() => import("@/pages/app/media"));
+const Profile = lazy(() => import("@/pages/app/profile"));
 const Admin = lazy(() => import("@/pages/admin/admin"));
 const NotFound = lazy(() => import("@/pages/system/not-found"));
 
@@ -63,6 +65,7 @@ export default function App() {
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
           <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="reset-password" element={<ResetPassword />} />
           <Route path="verify-email" element={<VerifyEmail />} />
         </Route>
         <Route element={<ProtectedRoute />}>
@@ -75,7 +78,7 @@ export default function App() {
             <Route path="app/optimization" element={<SimpleAppPage kind="optimization" />} />
             <Route path="app/analytics" element={<Analytics />} />
             <Route path="app/docs" element={<Docs />} />
-            <Route path="app/profile" element={<SimpleAppPage kind="profile" />} />
+            <Route path="app/profile" element={<Profile />} />
             <Route path="app/settings" element={<SimpleAppPage kind="settings" />} />
             <Route path="admin" element={<Admin />} />
           </Route>

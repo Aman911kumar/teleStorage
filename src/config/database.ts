@@ -5,6 +5,8 @@ import { MediaModel } from "../modules/media/media.model.js";
 import { WorkspaceModel } from "../modules/workspaces/workspace.model.js";
 import { FolderModel } from "../modules/folders/folder.model.js";
 import { ApiKeyModel } from "../modules/api-keys/api-key.model.js";
+import { AuthTokenModel } from "../modules/auth/auth-token.model.js";
+import { SessionModel } from "../modules/auth/session.model.js";
 import { ApiRequestLogModel } from "../modules/api-logs/api-request-log.model.js";
 import { WebhookModel } from "../modules/webhooks/webhook.model.js";
 import { generatePublicProjectId, generateUploadToken, hashUploadToken } from "../utils/apiTokens.js";
@@ -17,6 +19,8 @@ export async function connectDatabase() {
   await WorkspaceModel.createIndexes();
   await FolderModel.createIndexes();
   await ApiKeyModel.createIndexes();
+  await SessionModel.createIndexes();
+  await AuthTokenModel.createIndexes();
   await ApiRequestLogModel.createIndexes();
   await WebhookModel.createIndexes();
   logger.info("MongoDB connected");
