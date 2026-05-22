@@ -77,8 +77,8 @@ function sendSession(res: Response, session: Awaited<ReturnType<AuthService["log
   res.json({ success: true, data: { token: session.accessToken, accessToken: session.accessToken, user: session.user } });
 }
 
-function googleCallbackUrl() {
-  return env.GOOGLE_CALLBACK_URL ?? `${env.APP_BASE_URL}/api/auth/google/callback`;
+function googleCallbackUrl(req: AuthenticatedRequest) {
+  return env.GOOGLE_CALLBACK_URL ?? `${env.APP_BASE_URL ?? `${req.protocol}://${req.get("host")}`}/api/auth/google/callback`;
 }
 
 async function readJson<T>(response: globalThis.Response, fallback: string) {
@@ -87,7 +87,7 @@ async function readJson<T>(response: globalThis.Response, fallback: string) {
   return JSON.parse(text) as T;
 }
 
-async function exchangeGoogleCode(code: string) {
+async function exchangeGoogleCode(code: string, redirectUri: string) {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -95,7 +95,7 @@ async function exchangeGoogleCode(code: string) {
       code,
       client_id: env.GOOGLE_CLIENT_ID!,
       client_secret: env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: googleCallbackUrl(),
+      redirect_uri: redirectUri,
       grant_type: "authorization_code"
     })
   });
@@ -118,7 +118,7 @@ async function fetchGoogleProfile(accessToken: string) {
 authRouter.get(
   "/api/auth/google",
   authLimiter,
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
       res.status(501).json({ success: false, error: { code: "GOOGLE_AUTH_NOT_CONFIGURED", message: "Google login is not configured." } });
       return;
@@ -127,7 +127,7 @@ authRouter.get(
     res.cookie("telestore_google_state", state, oauthStateCookieOptions());
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
-    url.searchParams.set("redirect_uri", googleCallbackUrl());
+    url.searchParams.set("redirect_uri", googleCallbackUrl(req));
     url.searchParams.set("response_type", "code");
     url.searchParams.set("scope", "openid email profile");
     url.searchParams.set("state", state);
@@ -150,7 +150,7 @@ authRouter.get(
     }
 
     try {
-      const accessToken = await exchangeGoogleCode(code);
+      const accessToken = await exchangeGoogleCode(code, googleCallbackUrl(req));
       const profile = await fetchGoogleProfile(accessToken);
       const session = await service.loginWithGoogle(
         { id: profile.id!, email: profile.email!, name: profile.name, picture: profile.picture, verifiedEmail: profile.verified_email },

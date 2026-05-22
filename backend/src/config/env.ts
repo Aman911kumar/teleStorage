@@ -4,7 +4,7 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
-  APP_BASE_URL: z.string().url().default("http://localhost:4000"),
+  APP_BASE_URL: z.string().url().optional(),
   FRONTEND_APP_URL: z.string().url().default("http://localhost:5173"),
   CORS_ORIGINS: z.string().default("http://localhost:5173,http://127.0.0.1:5173"),
   MONGODB_URI: z.string().min(1),

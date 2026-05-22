@@ -11,7 +11,7 @@ export const allowedOrigins = [
     ...env.CORS_ORIGINS.split(",")
       .map((origin) => origin.trim())
       .filter(Boolean)
-  ])
+  ].filter(Boolean))
 ];
 
 export const corsOptions: CorsOptions = {
