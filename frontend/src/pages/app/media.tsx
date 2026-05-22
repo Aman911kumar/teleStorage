@@ -59,7 +59,6 @@ import {
   type Workspace
 } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
-import { withApiBase } from "@/lib/url";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui-store";
 
@@ -111,7 +110,7 @@ function MediaTypeIcon({ item, size = 18, className = "text-accent" }: { item: M
 function MediaImage({ id, alt, className = "h-full w-full" }: { id: string; alt: string; className?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const src = withApiBase(`/media/${id}/view`);
+  const src = `/media/${id}/view`;
   if (failed) {
     return (
       <div className={cn("grid place-items-center bg-[#090c13] text-muted", className)}>
@@ -141,8 +140,8 @@ function MediaImage({ id, alt, className = "h-full w-full" }: { id: string; alt:
 
 function resolveMediaUrl(item: MediaItem, kind: "view" | "thumb" | "download" = "view") {
   const relative = kind === "thumb" ? item.thumbUrl : kind === "download" ? item.downloadUrl : item.viewUrl;
-  if (relative) return relative.startsWith("http") ? relative : withApiBase(relative);
-  return withApiBase(`/media/${item._id}/${kind === "thumb" ? "thumb" : kind}`);
+  if (relative) return relative.startsWith("http") ? relative : `${location.origin}${relative}`;
+  return `${location.origin}/media/${item._id}/${kind === "thumb" ? "thumb" : kind}`;
 }
 
 function uploadKey(file: File) {
@@ -1057,9 +1056,9 @@ function PreviewModal({ item, onClose, onCopy, onNext, onPrevious, hasMultiple }
         <div className="grid h-full place-items-center pt-14">
           {item.mimeType.startsWith("image/") ? (
             <div className="max-h-[84vh] max-w-[92vw] overflow-auto thin-scrollbar">
-              <img src={resolveMediaUrl(item)} alt={item.originalName} loading="lazy" onError={() => toast.error("Image preview failed")} className="rounded-lg object-contain shadow-2xl transition duration-200" style={{ maxHeight: "84vh", maxWidth: "92vw", transform: `scale(${zoom})` }} />
+              <img src={`/media/${item._id}/view`} alt={item.originalName} loading="lazy" onError={() => toast.error("Image preview failed")} className="rounded-lg object-contain shadow-2xl transition duration-200" style={{ maxHeight: "84vh", maxWidth: "92vw", transform: `scale(${zoom})` }} />
             </div>
-          ) : item.mimeType.startsWith("video/") ? <video src={resolveMediaUrl(item)} controls preload="metadata" className="max-h-[84vh] max-w-[92vw] rounded-lg shadow-2xl" /> : <Card className="p-8 text-center"><File className="mx-auto text-accent" /><p className="mt-4 text-white">{item.originalName}</p><Button className="mt-4" onClick={() => window.open(resolveMediaUrl(item, "download"), "_blank")}><Download size={15} /> Open file</Button></Card>}
+          ) : item.mimeType.startsWith("video/") ? <video src={`/media/${item._id}/view`} controls preload="metadata" className="max-h-[84vh] max-w-[92vw] rounded-lg shadow-2xl" /> : <Card className="p-8 text-center"><File className="mx-auto text-accent" /><p className="mt-4 text-white">{item.originalName}</p><Button className="mt-4" onClick={() => window.open(resolveMediaUrl(item, "download"), "_blank")}><Download size={15} /> Open file</Button></Card>}
         </div>
       </motion.div>}
     </AnimatePresence>
