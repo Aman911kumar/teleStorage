@@ -1,6 +1,7 @@
 import axios from "axios";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { getApiBaseUrl } from "@/lib/url";
 import { useAuthStore } from "@/store/auth-store";
 
 declare module "axios" {
@@ -16,7 +17,7 @@ declare module "axios" {
 }
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:4000",
+  baseURL: getApiBaseUrl(),
   withCredentials: true,
   timeout: 30_000
 });

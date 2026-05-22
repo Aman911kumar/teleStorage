@@ -25,6 +25,7 @@ const envSchema = z.object({
   CACHE_MAX_MB: z.coerce.number().default(512),
   TEMP_FILE_TTL_SECONDS: z.coerce.number().default(3600),
   CLEANUP_INTERVAL_SECONDS: z.coerce.number().default(900),
+  MEDIA_DEBUG_LOGS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   SIGNED_URL_SECRET: z
     .string()
     .min(16, "SIGNED_URL_SECRET must be at least 16 characters. Use a long random secret."),

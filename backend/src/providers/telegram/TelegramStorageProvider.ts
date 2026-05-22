@@ -2,9 +2,10 @@ import fs from "node:fs";
 import { Readable } from "node:stream";
 import FormData from "form-data";
 import { AppError } from "../../core/errors.js";
+import { env } from "../../config/env.js";
 import { logger } from "../../utils/logger.js";
 import type { StorageProvider, StorageStream, UploadInput, UploadResult } from "../storage.types.js";
-import { telegramFetchStream, telegramMultipartRequest, telegramRequest } from "./telegramRequest.js";
+import { sanitizeUrl, telegramFetchStream, telegramMultipartRequest, telegramRequest } from "./telegramRequest.js";
 
 type TelegramFilePayload = { file_id: string; file_size?: number };
 
@@ -118,7 +119,16 @@ export class TelegramStorageProvider implements StorageProvider {
 
   async getFileUrl(providerFileId: string): Promise<string> {
     const file = await this.getTelegramFile(providerFileId);
-    return `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+    const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Generated fresh Telegram file URL", {
+        providerFileId,
+        filePath: file.file_path,
+        fileSize: file.file_size,
+        url: sanitizeUrl(url)
+      });
+    }
+    return url;
   }
 
   async streamFile(providerFileId: string, range?: string): Promise<StorageStream> {
@@ -126,6 +136,17 @@ export class TelegramStorageProvider implements StorageProvider {
     const response = await telegramFetchStream(fileUrl, {
       headers: range ? { Range: range } : undefined
     });
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Telegram file stream response", {
+        providerFileId,
+        range,
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+        contentLength: response.headers.get("content-length"),
+        contentRange: response.headers.get("content-range"),
+        acceptRanges: response.headers.get("accept-ranges")
+      });
+    }
     return {
       stream: Readable.fromWeb(response.body as any),
       contentLength: Number(response.headers.get("content-length")) || undefined,
@@ -176,6 +197,16 @@ export class TelegramStorageProvider implements StorageProvider {
     const body = await telegramRequest<TelegramGetFileResponse["result"]>(
       `${this.apiBase}/getFile?file_id=${encodeURIComponent(providerFileId)}`
     );
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Telegram getFile response", {
+        providerFileId,
+        ok: body.ok,
+        filePath: body.result?.file_path,
+        fileSize: body.result?.file_size,
+        errorCode: body.error_code,
+        description: body.description
+      });
+    }
     if (!body.ok || !body.result?.file_path) {
       logger.error("Telegram getFile response missing file_path", {
         fileId: providerFileId,

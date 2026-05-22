@@ -201,6 +201,20 @@ export class MediaService {
   ) {
     const media = await this.repository.findById(mediaId);
     if (!media || media.status === "deleted") throw new NotFoundError("Media not found");
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Preparing media stream", {
+        mediaId,
+        provider: media.provider,
+        providerFileId: media.providerFileId,
+        mimeType: media.mimeType,
+        visibility: media.visibility,
+        status: media.status,
+        range,
+        download: Boolean(options.download),
+        thumbnail: Boolean(options.thumbnail),
+        transform: options.transform
+      });
+    }
 
     const shouldValidateAccess = options.requireAccess !== false;
     const publicOrOwner = media.visibility === "public" || String(media.uploadedBy) === userId;
@@ -236,6 +250,15 @@ export class MediaService {
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Type", target.mimeType);
     res.setHeader("Content-Disposition", `${options.download ? "attachment" : "inline"}; filename="${encodeURIComponent(media.originalName)}"`);
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Media response base headers prepared", {
+        mediaId,
+        contentType: target.mimeType,
+        cacheControl: res.getHeader("Cache-Control"),
+        acceptRanges: res.getHeader("Accept-Ranges"),
+        contentDisposition: res.getHeader("Content-Disposition")
+      });
+    }
 
     if (options.thumbnail) {
       const cachePath = await this.ensureCached(mediaId, target.providerFileId, storage, "thumb");
@@ -565,6 +588,19 @@ export class MediaService {
     if (providerStream.contentType) res.setHeader("Content-Type", contentType || providerStream.contentType);
     if (providerStream.contentLength) res.setHeader("Content-Length", providerStream.contentLength);
     if (providerStream.contentRange) res.setHeader("Content-Range", providerStream.contentRange);
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Proxying Telegram stream to browser", {
+        providerFileId,
+        requestedRange: range,
+        responseStatus: res.statusCode,
+        contentType: res.getHeader("Content-Type"),
+        contentLength: res.getHeader("Content-Length"),
+        contentRange: res.getHeader("Content-Range"),
+        cacheControl: res.getHeader("Cache-Control"),
+        acceptRanges: res.getHeader("Accept-Ranges"),
+        contentDisposition: res.getHeader("Content-Disposition")
+      });
+    }
 
     const onClose = () => providerStream.stream.destroy();
     res.once("close", onClose);
@@ -588,6 +624,14 @@ export class MediaService {
       res.status(200);
       res.setHeader("Content-Type", contentType);
       res.setHeader("Content-Length", stat.size);
+      if (env.MEDIA_DEBUG_LOGS) {
+        logger.info("Streaming cached media file", {
+          filePath,
+          contentType,
+          contentLength: stat.size,
+          responseStatus: 200
+        });
+      }
       await pipeline(createReadStream(filePath), res);
       return;
     }
@@ -609,6 +653,15 @@ export class MediaService {
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Length", end - start + 1);
     res.setHeader("Content-Range", `bytes ${start}-${end}/${stat.size}`);
+    if (env.MEDIA_DEBUG_LOGS) {
+      logger.info("Streaming cached media file range", {
+        filePath,
+        contentType,
+        contentLength: end - start + 1,
+        contentRange: `bytes ${start}-${end}/${stat.size}`,
+        responseStatus: 206
+      });
+    }
     await pipeline(createReadStream(filePath, { start, end }), res);
   }
 }

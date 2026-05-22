@@ -1,7 +1,9 @@
 import type { Response } from "express";
 import { z } from "zod";
 import { AppError } from "../../core/errors.js";
+import { env } from "../../config/env.js";
 import type { AuthenticatedRequest } from "../../core/types.js";
+import { logger } from "../../utils/logger.js";
 import { MediaService } from "./media.service.js";
 
 const mediaService = new MediaService();
@@ -56,6 +58,29 @@ function ifNoneMatch(req: AuthenticatedRequest) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function requestBaseUrl(req: AuthenticatedRequest) {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get("host");
+  return `${protocol}://${host}`;
+}
+
+function logMediaRequest(req: AuthenticatedRequest, mode: "stream" | "view" | "download" | "thumbnail") {
+  if (!env.MEDIA_DEBUG_LOGS) return;
+  logger.info("Media request received", {
+    mode,
+    mediaId: req.params.id,
+    method: req.method,
+    url: req.originalUrl,
+    baseUrl: requestBaseUrl(req),
+    range: req.headers.range,
+    userAgent: req.get("user-agent"),
+    origin: req.get("origin"),
+    referer: req.get("referer")
+  });
+}
+
 export class MediaController {
   uploadImage = async (req: AuthenticatedRequest, res: Response) => {
     if (!req.file || !req.user) throw new AppError("File is required", 400, "FILE_REQUIRED");
@@ -95,6 +120,7 @@ export class MediaController {
   };
 
   stream = async (req: AuthenticatedRequest, res: Response) => {
+    logMediaRequest(req, "stream");
     await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, {
       ifNoneMatch: ifNoneMatch(req),
       transform: imageTransform(req)
@@ -102,6 +128,7 @@ export class MediaController {
   };
 
   view = async (req: AuthenticatedRequest, res: Response) => {
+    logMediaRequest(req, "view");
     await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, {
       requireAccess: false,
       ifNoneMatch: ifNoneMatch(req),
@@ -110,6 +137,7 @@ export class MediaController {
   };
 
   download = async (req: AuthenticatedRequest, res: Response) => {
+    logMediaRequest(req, "download");
     await mediaService.stream(req.params.id, res, req.user?.id, req.query.token as string | undefined, req.headers.range, {
       download: true,
       ifNoneMatch: ifNoneMatch(req)
@@ -117,6 +145,7 @@ export class MediaController {
   };
 
   thumbnail = async (req: AuthenticatedRequest, res: Response) => {
+    logMediaRequest(req, "thumbnail");
     await mediaService.thumbnail(req.params.id, res, req.user?.id, req.query.token as string | undefined);
   };
 
