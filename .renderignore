@@ -1,0 +1,6 @@
+frontend
+frontend/**
+dist
+node_modules
+tmp
+.env
