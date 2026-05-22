@@ -163,6 +163,7 @@ export default function Media() {
   const [details, setDetails] = useState<MediaItem | null>(null);
   const [preview, setPreview] = useState<MediaItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -269,6 +270,35 @@ export default function Media() {
     }
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => deleteMedia(id)));
+      return ids;
+    },
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: ["media"] });
+      const previous = queryClient.getQueryData<MediaItem[]>(["media"]);
+      queryClient.setQueryData<MediaItem[]>(["media"], (current = []) => {
+        const idSet = new Set(ids);
+        if (filter === "trash") return current.filter((item) => !idSet.has(item._id));
+        return current.map((item) => idSet.has(item._id) ? { ...item, status: "deleted" } : item);
+      });
+      return { previous };
+    },
+    onSuccess: async (_ids, variables) => {
+      toast.success(`${variables.length} file${variables.length > 1 ? "s" : ""} deleted`);
+      setBulkDeleteIds([]);
+      setSelected([]);
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
+      await queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+    onError: (error, _ids, context) => {
+      if (context?.previous) queryClient.setQueryData(["media"], context.previous);
+      notifyError(error, "Unable to delete selected media.");
+    }
+  });
+
   const syncMutation = useMutation({
     mutationFn: syncWorkspace,
     onSuccess: async (result) => {
@@ -301,6 +331,8 @@ export default function Media() {
 
   const currentFolders = filter === "trash" ? [] : allFolders.filter((folder) => (currentFolderId ? folder.parentId === currentFolderId : !folder.parentId));
   const selectedItems = currentFiles.filter((item) => selected.includes(item._id));
+  const allCurrentFileIds = currentFiles.map((item) => item._id);
+  const allCurrentSelected = allCurrentFileIds.length > 0 && allCurrentFileIds.every((id) => selected.includes(id));
   const currentImageIndex = preview ? currentFiles.findIndex((item) => item._id === preview._id) : -1;
   const storageLimitBytes = activeWorkspace?.storageLimitBytes ?? 0;
   const storagePercent = storageLimitBytes > 0 ? Math.min(((activeWorkspace?.storageUsed ?? 0) / storageLimitBytes) * 100, 100) : 0;
@@ -313,6 +345,15 @@ export default function Media() {
 
   function toggleSelected(id: string) {
     setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function selectAllCurrent() {
+    setSelected((current) => Array.from(new Set([...current, ...allCurrentFileIds])));
+  }
+
+  function deselectAllCurrent() {
+    const visible = new Set(allCurrentFileIds);
+    setSelected((current) => current.filter((id) => !visible.has(id)));
   }
 
   const enqueue = useCallback((files?: FileList | null) => {
@@ -609,7 +650,18 @@ export default function Media() {
                 <Button variant="outline" size="sm">Filter</Button>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted">
-                {selected.length ? <><span>{selected.length} selected</span><Button variant="destructive" size="sm" onClick={() => selectedItems[0] && setDeleteTarget(selectedItems[0])}><Trash2 size={14} /> Delete</Button></> : <span>{currentFolders.length + currentFiles.length} items</span>}
+                {currentFiles.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={allCurrentSelected ? deselectAllCurrent : selectAllCurrent}>
+                    {allCurrentSelected ? "Deselect all" : "Select all"}
+                  </Button>
+                )}
+                {selectedItems.length ? (
+                  <>
+                    <span>{selectedItems.length} selected</span>
+                    <Button variant="ghost" size="sm" onClick={deselectAllCurrent}>Clear</Button>
+                    <Button variant="destructive" size="sm" onClick={() => setBulkDeleteIds(selectedItems.map((item) => item._id))}><Trash2 size={14} /> Delete selected</Button>
+                  </>
+                ) : <span>{currentFolders.length + currentFiles.length} items</span>}
               </div>
             </div>
           </Card>
@@ -677,6 +729,7 @@ export default function Media() {
       <PreviewModal item={preview} onClose={() => setPreview(null)} onCopy={copyUrl} onNext={() => openNextPreview(1)} onPrevious={() => openNextPreview(-1)} hasMultiple={currentFiles.length > 1} />
       <DetailsPanel item={details} onClose={() => setDetails(null)} onCopy={copyUrl} />
       <DeleteModal item={deleteTarget} loading={deleteMutation.isPending} onClose={() => setDeleteTarget(null)} onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget._id)} />
+      <BulkDeleteModal count={bulkDeleteIds.length} loading={bulkDeleteMutation.isPending} onClose={() => setBulkDeleteIds([])} onConfirm={() => bulkDeleteMutation.mutate(bulkDeleteIds)} permanent={filter === "trash"} />
     </main>
   );
 }
@@ -975,6 +1028,25 @@ function DeleteModal({ item, loading, onClose, onConfirm }: { item: MediaItem | 
           <p className="mt-3 text-sm leading-6 text-muted">{isTrashItem ? "This permanently removes the database record." : "This removes the Telegram message and moves the file record to Trash."}</p>
           <p className="mt-3 truncate rounded bg-[#090c13] p-2 text-sm text-white">{item.originalName}</p>
           <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button><LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete</LoadingButton></div>
+        </Card>
+      </motion.div>}
+    </AnimatePresence>
+  );
+}
+
+function BulkDeleteModal({ count, loading, permanent, onClose, onConfirm }: { count: number; loading: boolean; permanent: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <AnimatePresence>
+      {count > 0 && <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <Card className="w-full max-w-md border-red-500/30 p-5">
+          <div className="flex items-center gap-3 text-red-300"><Trash2 /><h2 className="font-semibold">{permanent ? "Delete selected forever?" : "Delete selected media?"}</h2></div>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            {permanent ? `This permanently removes ${count} selected file${count > 1 ? "s" : ""} from the project.` : `This removes ${count} selected file${count > 1 ? "s" : ""} from Telegram and moves the record to Trash.`}
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button>
+            <LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete {count}</LoadingButton>
+          </div>
         </Card>
       </motion.div>}
     </AnimatePresence>
