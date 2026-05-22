@@ -1,14 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { requireWorkspaceUploadToken } from "../../middlewares/apiAccess.middleware.js";
+import { requirePublicApiKey, requireWorkspaceUploadToken } from "../../middlewares/apiAccess.middleware.js";
 import { upload } from "../../middlewares/upload.middleware.js";
-import { uploadRateLimit } from "../../middlewares/rateLimit.js";
+import { publicApiRateLimit, uploadRateLimit } from "../../middlewares/rateLimit.js";
 import { apiRequestLogger } from "../../middlewares/apiRequestLog.middleware.js";
 import type { AuthenticatedRequest } from "../../core/types.js";
 import { MediaService } from "../media/media.service.js";
 import { FolderService } from "../folders/folder.service.js";
 import { AppError, ForbiddenError } from "../../core/errors.js";
+import { createTemporaryUploadToken } from "../../utils/apiTokens.js";
 
 const mediaService = new MediaService();
 const folderService = new FolderService();
@@ -62,16 +63,41 @@ function kindFromMime(mimeType: string) {
   return "document";
 }
 
-function requireApiScope(req: AuthenticatedRequest, scope: "upload" | "read" | "write" | "delete") {
+function requireApiScope(req: AuthenticatedRequest, scope: "upload" | "read" | "write" | "delete" | "admin") {
   const scopes = req.apiWorkspace?.scopes;
   if (!scopes?.length) return;
-  if (scopes.includes("full") || scopes.includes(scope)) return;
+  if (scopes.includes("full") || scopes.includes("admin") || scopes.includes(scope)) return;
   throw new ForbiddenError(`API key does not have ${scope} access`);
 }
 
 export const apiV1Router = Router();
 
 apiV1Router.use("/api/v1", apiRequestLogger);
+apiV1Router.use("/api/v1", publicApiRateLimit);
+
+apiV1Router.post(
+  "/api/v1/upload-tokens",
+  requirePublicApiKey,
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const ttlSeconds = Math.min(Math.max(Number(req.body?.ttlSeconds) || 900, 60), 3600);
+    const workspace = req.apiWorkspace!;
+    res.status(201).json({
+      success: true,
+      data: {
+        token: createTemporaryUploadToken({
+          workspaceId: workspace.id,
+          ownerId: workspace.ownerId,
+          publicProjectId: workspace.publicProjectId,
+          scopes: ["upload"],
+          ttlSeconds
+        }),
+        tokenType: "upload_token",
+        expiresInSeconds: ttlSeconds
+      }
+    });
+  })
+);
+
 apiV1Router.use("/api/v1", requireWorkspaceUploadToken);
 
 apiV1Router.post(

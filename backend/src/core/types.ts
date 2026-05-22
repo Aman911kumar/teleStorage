@@ -1,6 +1,7 @@
 import type { Request } from "express";
 
 export type Role = "user" | "admin";
+export type ApiScope = "upload" | "read" | "write" | "delete" | "admin" | "full";
 
 export interface AuthUser {
   id: string;
@@ -15,6 +16,6 @@ export interface AuthenticatedRequest extends Request {
     ownerId: string;
     publicProjectId: string;
     apiKeyId?: string;
-    scopes?: string[];
+    scopes?: ApiScope[] | string[];
   };
 }

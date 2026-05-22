@@ -7,7 +7,7 @@ const apiKeySchema = new Schema(
     name: { type: String, required: true, trim: true },
     publicKey: { type: String, required: true, unique: true, index: true },
     secretHash: { type: String, required: true },
-    scopes: [{ type: String, enum: ["upload", "read", "write", "delete", "full"] }],
+    scopes: [{ type: String, enum: ["upload", "read", "write", "delete", "admin", "full"] }],
     status: { type: String, enum: ["active", "revoked"], default: "active", index: true },
     lastUsedAt: Date,
     lastUsedIp: String

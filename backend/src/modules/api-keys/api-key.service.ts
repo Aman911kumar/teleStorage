@@ -4,7 +4,7 @@ import { AppError, NotFoundError } from "../../core/errors.js";
 import { WorkspaceModel } from "../workspaces/workspace.model.js";
 import { ApiKeyModel } from "./api-key.model.js";
 
-export type ApiScope = "upload" | "read" | "write" | "delete" | "full";
+export type ApiScope = "upload" | "read" | "write" | "delete" | "admin" | "full";
 
 function hashSecret(secret: string) {
   return crypto.createHash("sha256").update(secret).digest("hex");
@@ -90,6 +90,13 @@ export class ApiKeyService {
     if (!workspace) throw new AppError("Workspace is disabled", 403, "WORKSPACE_DISABLED");
     await ApiKeyModel.updateOne({ _id: key._id }, { lastUsedAt: new Date(), lastUsedIp: ip }).catch(() => undefined);
     return { key, workspace };
+  }
+
+  async findPublicKey(publicKey: string, ip?: string) {
+    const key = await ApiKeyModel.findOne({ publicKey, status: "active" }).lean();
+    if (!key) throw new AppError("Invalid public API key", 403, "INVALID_PUBLIC_API_KEY");
+    await ApiKeyModel.updateOne({ _id: key._id }, { lastUsedAt: new Date(), lastUsedIp: ip }).catch(() => undefined);
+    return key;
   }
 
   private safe(key: any) {

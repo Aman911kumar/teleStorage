@@ -33,7 +33,7 @@ import {
   type Workspace
 } from "@/lib/api";
 
-const scopes = ["upload", "read", "write", "delete", "full"];
+const scopes = ["upload", "read", "write", "delete", "admin", "full"];
 const emptyWorkspaces: Workspace[] = [];
 
 function copy(value: string, label = "Copied") {

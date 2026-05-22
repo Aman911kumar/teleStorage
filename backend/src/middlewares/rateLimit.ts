@@ -11,6 +11,7 @@ export const apiRateLimit = rateLimit({
 export const uploadRateLimit = rateLimit({
   windowMs: 60_000,
   limit: 30,
+  keyGenerator: (req) => `${req.ip}:${req.header("x-api-key") ?? req.header("x-project-id") ?? "dashboard"}`,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: {
@@ -18,6 +19,21 @@ export const uploadRateLimit = rateLimit({
     error: {
       code: "UPLOAD_RATE_LIMITED",
       message: "Too many uploads. Please slow down and retry."
+    }
+  }
+});
+
+export const publicApiRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 300,
+  keyGenerator: (req) => `${req.ip}:${req.header("x-api-key") ?? req.header("x-project-id") ?? "anonymous"}`,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: "API_RATE_LIMITED",
+      message: "Too many API requests. Please slow down and retry."
     }
   }
 });

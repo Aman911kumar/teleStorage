@@ -11,7 +11,7 @@ const service = new ApiKeyService();
 const apiKeySchema = z.object({
   workspaceId: z.string().min(1),
   name: z.string().min(2).max(80),
-  scopes: z.array(z.enum(["upload", "read", "write", "delete", "full"])).optional()
+  scopes: z.array(z.enum(["upload", "read", "write", "delete", "admin", "full"])).optional()
 });
 
 export const apiKeyRouter = Router();
