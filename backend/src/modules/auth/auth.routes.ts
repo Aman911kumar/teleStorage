@@ -68,6 +68,16 @@ function oauthStateCookieOptions() {
   };
 }
 
+function oauthReturnCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/api/auth/google",
+    maxAge: 10 * 60 * 1000
+  };
+}
+
 function meta(req: AuthenticatedRequest) {
   return { userAgent: req.header("user-agent"), ip: req.ip };
 }
@@ -79,6 +89,40 @@ function sendSession(res: Response, session: Awaited<ReturnType<AuthService["log
 
 function googleCallbackUrl(req: AuthenticatedRequest) {
   return env.GOOGLE_CALLBACK_URL ?? `${env.APP_BASE_URL ?? `${req.protocol}://${req.get("host")}`}/api/auth/google/callback`;
+}
+
+function safeAbsoluteUrl(value?: string) {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function callbackFromReferer(req: AuthenticatedRequest) {
+  const referer = req.get("referer");
+  if (!referer) return undefined;
+  try {
+    return new URL("/auth/callback", referer).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function loginFromReturnTo(returnTo?: string) {
+  const safeReturnTo = safeAbsoluteUrl(returnTo);
+  if (!safeReturnTo) return undefined;
+  const url = new URL(safeReturnTo);
+  url.pathname = "/login";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+function fallbackReturnTo(req: AuthenticatedRequest) {
+  return callbackFromReferer(req) ?? (env.FRONTEND_APP_URL ? `${env.FRONTEND_APP_URL}/auth/callback` : undefined);
 }
 
 async function readJson<T>(response: globalThis.Response, fallback: string) {
@@ -124,7 +168,14 @@ authRouter.get(
       return;
     }
     const state = crypto.randomBytes(24).toString("base64url");
+    const queryReturnTo = typeof req.query.returnTo === "string" ? req.query.returnTo : undefined;
+    const returnTo = safeAbsoluteUrl(queryReturnTo) ?? fallbackReturnTo(req);
+    if (!returnTo) {
+      res.status(400).json({ success: false, error: { code: "GOOGLE_RETURN_URL_REQUIRED", message: "Google login return URL is required." } });
+      return;
+    }
     res.cookie("telestore_google_state", state, oauthStateCookieOptions());
+    res.cookie("telestore_google_return_to", returnTo, oauthReturnCookieOptions());
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
     url.searchParams.set("redirect_uri", googleCallbackUrl(req));
@@ -143,9 +194,12 @@ authRouter.get(
     const code = typeof req.query.code === "string" ? req.query.code : "";
     const state = typeof req.query.state === "string" ? req.query.state : "";
     const cookieState = readCookie(req, "telestore_google_state");
+    const returnTo = safeAbsoluteUrl(readCookie(req, "telestore_google_return_to")) ?? fallbackReturnTo(req);
+    const loginUrl = loginFromReturnTo(returnTo);
     res.clearCookie("telestore_google_state", { ...oauthStateCookieOptions(), maxAge: undefined });
+    res.clearCookie("telestore_google_return_to", { ...oauthReturnCookieOptions(), maxAge: undefined });
     if (!code || !state || !cookieState || state !== cookieState) {
-      res.redirect(`${env.FRONTEND_APP_URL}/login?error=google_state`);
+      res.redirect(loginUrl ? `${loginUrl}?error=google_state` : "/");
       return;
     }
 
@@ -157,9 +211,9 @@ authRouter.get(
         meta(req)
       );
       setRefreshCookie(res, session.refreshToken);
-      res.redirect(`${env.FRONTEND_APP_URL}/auth/callback`);
+      res.redirect(returnTo ?? "/");
     } catch {
-      res.redirect(`${env.FRONTEND_APP_URL}/login?error=google_failed`);
+      res.redirect(loginUrl ? `${loginUrl}?error=google_failed` : "/");
     }
   })
 );

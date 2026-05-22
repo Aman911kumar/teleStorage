@@ -70,7 +70,8 @@ export async function login(email: string, password: string, remember = true) {
 }
 
 export function startGoogleLogin() {
-  window.location.href = `${api.defaults.baseURL}/api/auth/google`;
+  const returnTo = `${window.location.origin}/auth/callback`;
+  window.location.href = `${api.defaults.baseURL}/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 export async function register(input: { name?: string; email: string; password: string }) {
