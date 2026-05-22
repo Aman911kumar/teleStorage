@@ -2,7 +2,7 @@ import axios from "axios";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronRight,
   ChevronLeft,
@@ -82,7 +82,7 @@ const MAX_SINGLE_FILE_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_CONCURRENT_UPLOADS = 3;
 
 declare module "react" {
-  interface InputHTMLAttributes<T> {
+  interface InputHTMLAttributes<T> extends React.HTMLAttributes<T> {
     webkitdirectory?: string;
     directory?: string;
   }
@@ -124,7 +124,7 @@ function MediaImage({ id, alt, className = "h-full w-full" }: { id: string; alt:
 
   return (
     <div className={cn("relative overflow-hidden bg-[#090c13]", className)}>
-      {!loaded && <div className="absolute inset-0 animate-shimmer bg-[linear-gradient(110deg,rgba(255,255,255,0.03),rgba(255,255,255,0.09),rgba(255,255,255,0.03))] bg-[length:200%_100%]" />}
+      {!loaded && <div className="absolute inset-0 animate-shimmer bg-[linear-gradient(110deg,rgba(255,255,255,0.03),rgba(255,255,255,0.09),rgba(255,255,255,0.03))] bg-size-[200%_100%]" />}
       <img
         src={src}
         alt={alt}
@@ -151,6 +151,7 @@ function uploadKey(file: File) {
 export default function Media() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const uploadRequestId = useUiStore((state) => state.uploadRequestId);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -158,7 +159,6 @@ export default function Media() {
   const inFlightUploads = useRef(new Set<string>());
   const queueRef = useRef<UploadItem[]>([]);
   const ensuredFolders = useRef(new Map<string, string>());
-  const uploadRequestHydrated = useRef(false);
   const [workspaceId, setWorkspaceId] = useState("");
   const [activeFolder, setActiveFolder] = useState<FolderItem | null>(null);
   const [filter, setFilter] = useState<ExplorerFilter>("all");
@@ -169,7 +169,9 @@ export default function Media() {
   const [preview, setPreview] = useState<MediaItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const [manualUploadOpen, setManualUploadOpen] = useState(false);
+  const [handledUploadRequestId, setHandledUploadRequestId] = useState(uploadRequestId);
+  const [dismissedRouteUpload, setDismissedRouteUpload] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [renameFolderTarget, setRenameFolderTarget] = useState<FolderItem | null>(null);
@@ -182,20 +184,27 @@ export default function Media() {
   }, [queue]);
 
   useEffect(() => {
+    const activeControllers = controllers.current;
     return () => {
-      controllers.current.forEach((controller) => controller.abort());
+      activeControllers.forEach((controller) => controller.abort());
       queueRef.current.forEach((item) => {
         if (item.preview) URL.revokeObjectURL(item.preview);
       });
     };
   }, []);
 
-  useEffect(() => {
-    if (!uploadRequestHydrated.current) {
-      uploadRequestHydrated.current = true;
-      return;
-    }
-    if (uploadRequestId > 0) setUploadOpen(true);
+  const routeRequestsUpload = Boolean((location.state as { openUpload?: boolean } | null)?.openUpload);
+  const uploadOpen = manualUploadOpen || uploadRequestId > handledUploadRequestId || (routeRequestsUpload && !dismissedRouteUpload);
+
+  const openUploadModal = useCallback(() => {
+    setManualUploadOpen(true);
+    setDismissedRouteUpload(false);
+  }, []);
+
+  const closeUploadModal = useCallback(() => {
+    setManualUploadOpen(false);
+    setHandledUploadRequestId(uploadRequestId);
+    setDismissedRouteUpload(true);
   }, [uploadRequestId]);
 
   const { data: workspaces = [], isLoading: workspacesLoading } = useQuery({ queryKey: ["workspaces"], queryFn: getWorkspaces });
@@ -438,8 +447,8 @@ export default function Media() {
       return;
     }
     setQueue((current) => [...incoming, ...current]);
-    setUploadOpen(true);
-  }, [requireWorkspace]);
+    openUploadModal();
+  }, [openUploadModal, requireWorkspace]);
 
   const removeUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
@@ -464,12 +473,12 @@ export default function Media() {
     const startedAt = Date.now();
     setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "uploading", progress: 1, uploadedBytes: 0, speed: 0, etaSeconds: undefined, error: undefined, startedAt } : q));
     try {
-      let targetFolderId = activeFolder?._id;
+      let targetFolderId = currentFolderId;
       if (item.folderPath) {
-        const cacheKey = `${resolvedWorkspaceId}:${activeFolder?._id ?? "root"}:${item.folderPath}`;
+        const cacheKey = `${resolvedWorkspaceId}:${currentFolderId ?? "root"}:${item.folderPath}`;
         targetFolderId = ensuredFolders.current.get(cacheKey);
         if (!targetFolderId) {
-          const folder = await ensureFolderPath({ workspaceId: resolvedWorkspaceId, parentId: activeFolder?._id, path: item.folderPath });
+          const folder = await ensureFolderPath({ workspaceId: resolvedWorkspaceId, parentId: currentFolderId, path: item.folderPath });
           targetFolderId = folder._id;
           ensuredFolders.current.set(cacheKey, targetFolderId);
           await queryClient.invalidateQueries({ queryKey: ["folders", resolvedWorkspaceId] });
@@ -507,7 +516,7 @@ export default function Media() {
       controllers.current.delete(item.id);
       inFlightUploads.current.delete(item.id);
     }
-  }, [activeFolder?._id, queryClient, removeUpload, requireWorkspace, resolvedWorkspaceId]);
+  }, [currentFolderId, queryClient, removeUpload, requireWorkspace, resolvedWorkspaceId]);
 
   const cancelUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
@@ -583,9 +592,9 @@ export default function Media() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-[#07090d]">
+    <main className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="sticky top-16 z-20 border-b border-border/80 bg-[#080b11]/86 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-[1680px] flex-col gap-4 xl:flex-row xl:items-center">
+        <div className="mx-auto flex max-w-420 flex-col gap-4 xl:flex-row xl:items-center">
           <div className="flex min-w-0 items-center gap-2 text-sm text-muted xl:w-72">
             <button className="text-white hover:text-accent" onClick={() => setActiveFolder(null)}>Workspace</button>
             {activeFolder && <><ChevronRight size={15} /><button className="truncate text-white">{activeFolder.name}</button></>}
@@ -595,21 +604,21 @@ export default function Media() {
             <Input className="pl-9" placeholder="Search files, tags and folders" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
           <div className="flex flex-wrap gap-2 xl:ml-auto">
-            <select className="h-10 rounded-md border border-border bg-[#0d1118] px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
+            <select className="h-10 rounded-md border border-border bg-panel px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
               {workspacesLoading ? <option>Loading workspaces...</option> : workspaces.map((workspace) => <option key={workspace._id} value={workspace._id}>{workspace.name}</option>)}
             </select>
             <LoadingButton variant="secondary" loading={syncMutation.isPending} loadingText="Syncing..." disabled={!resolvedWorkspaceId} onClick={() => resolvedWorkspaceId && syncMutation.mutate(resolvedWorkspaceId)}><RefreshCw size={16} /> Sync</LoadingButton>
             <Button variant="secondary" onClick={() => setNewFolderOpen(true)}><FolderPlus size={16} /> New Folder</Button>
-            <Button onClick={() => requireWorkspace() && setUploadOpen(true)}><UploadCloud size={16} /> Upload</Button>
+            <Button onClick={() => requireWorkspace() && openUploadModal()}><UploadCloud size={16} /> Upload</Button>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto grid min-h-[calc(100vh-9rem)] max-w-[1680px] lg:grid-cols-[264px_1fr]">
+      <div className="mx-auto grid min-h-[calc(100vh-9rem)] max-w-420 lg:grid-cols-[264px_1fr]">
         <aside className="hidden border-r border-border bg-white/[0.018] p-4 lg:block">
           <nav className="space-y-1">
             {filterItems.map((item) => (
-              <button key={item.id} onClick={() => setFilter(item.id)} className={cn("flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted transition hover:bg-white/[0.055] hover:text-white", filter === item.id && "bg-white/[0.075] text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)]")}>
+              <button key={item.id} onClick={() => setFilter(item.id)} className={cn("flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted transition hover:bg-white/5.5 hover:text-white", filter === item.id && "bg-white/7.5 text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)]")}>
                 <item.icon size={17} /> {item.label}
               </button>
             ))}
@@ -620,7 +629,7 @@ export default function Media() {
             </div>
             <div className="space-y-1">
               {allFolders.length ? allFolders.map((folder) => (
-                <button key={folder._id} onClick={() => setActiveFolder(folder)} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted transition hover:bg-white/[0.055] hover:text-white", activeFolder?._id === folder._id && "bg-white/[0.075] text-white")}>
+                <button key={folder._id} onClick={() => setActiveFolder(folder)} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted transition hover:bg-white/5.5 hover:text-white", activeFolder?._id === folder._id && "bg-white/7.5 text-white")}>
                   <Folder size={16} className="text-accent" />
                   <span className="truncate">{folder.path}</span>
                 </button>
@@ -681,14 +690,14 @@ export default function Media() {
                   <span>{storageLimitBytes > 0 ? formatBytes(storageLimitBytes) : "No fixed cap"}</span>
                 </div>
                 <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-md border border-border bg-white/[0.025] p-3"><p className="text-muted">Files</p><p className="mt-1 font-semibold text-white">{activeWorkspace?.uploadCount ?? 0}</p></div>
-                  <div className="rounded-md border border-border bg-white/[0.025] p-3"><p className="text-muted">Completed</p><p className="mt-1 font-semibold text-white">{queueStats.completed}</p></div>
+                  <div className="rounded-md border border-border bg-white/2.5 p-3"><p className="text-muted">Files</p><p className="mt-1 font-semibold text-white">{activeWorkspace?.uploadCount ?? 0}</p></div>
+                  <div className="rounded-md border border-border bg-white/2.5 p-3"><p className="text-muted">Completed</p><p className="mt-1 font-semibold text-white">{queueStats.completed}</p></div>
                 </div>
               </div>
             </div>
           </Card>
 
-          <Card className="sticky top-[5.5rem] z-10 mb-6 p-3 backdrop-blur-xl">
+          <Card className="sticky top-22 z-10 mb-6 p-3 backdrop-blur-xl">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
                 <Button variant={view === "grid" ? "primary" : "secondary"} size="sm" onClick={() => setView("grid")}><Grid2X2 size={15} /></Button>
@@ -717,7 +726,7 @@ export default function Media() {
           {mediaQuery.isLoading || foldersQuery.isLoading ? <PageLoading cards={6} /> : mediaQuery.isError ? (
             <EmptyState icon={File} title="Unable to load files" text="The explorer could not connect to your backend." action="Retry" onAction={() => mediaQuery.refetch()} />
           ) : !currentFolders.length && !currentFiles.length ? (
-            <EmptyState icon={Folder} title="This folder is empty" text="Upload files or create a folder to start organizing your media." action="Upload files" onAction={() => requireWorkspace() && setUploadOpen(true)} />
+            <EmptyState icon={Folder} title="This folder is empty" text="Upload files or create a folder to start organizing your media." action="Upload files" onAction={() => requireWorkspace() && openUploadModal()} />
           ) : view === "grid" ? (
             <motion.div layout className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
               {currentFolders.map((folder) => (
@@ -760,7 +769,7 @@ export default function Media() {
       <UploadModal
         open={uploadOpen}
         queue={queue}
-        onClose={() => setUploadOpen(false)}
+        onClose={closeUploadModal}
         onPick={() => requireWorkspace() && uploadInputRef.current?.click()}
         onPickFolder={() => requireWorkspace() && folderInputRef.current?.click()}
         onFiles={enqueue}
@@ -786,7 +795,7 @@ export default function Media() {
 function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem; onOpen: () => void; onRename: () => void; onDelete: () => void }) {
   return (
     <motion.div layout className="surface group flex min-h-64 flex-col rounded-lg p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70">
-      <button onClick={onOpen} className="grid aspect-[4/3] place-items-center rounded-md border border-border/70 bg-white/[0.025]">
+      <button onClick={onOpen} className="grid aspect-4/3 place-items-center rounded-md border border-border/70 bg-white/2.5">
         <Folder className="text-accent" size={42} />
       </button>
       <div className="mt-4 flex items-start justify-between gap-3">
@@ -806,10 +815,10 @@ function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem
 function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onCopy, onRename, onDelete, onRestore, onMove }: { item: MediaItem; selected: boolean; folders: FolderItem[]; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onDelete: () => void; onRestore?: () => void; onMove: (folderId: string | null) => void }) {
   return (
     <motion.div layout className={cn("surface group rounded-lg p-3 transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70", selected && "border-accent ring-1 ring-accent/40")}>
-      <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-border/70 bg-[#090c13] text-accent">
+      <div className="relative aspect-4/3 overflow-hidden rounded-md border border-border/70 bg-[#090c13] text-accent">
         {item.mimeType.startsWith("image/") ? <MediaImage id={item._id} alt={item.originalName} /> : <div className="grid h-full place-items-center"><MediaTypeIcon item={item} size={40} /></div>}
         <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="absolute left-3 top-3 h-4 w-4 accent-[#5b8cff]" />
-        <div className="absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-end gap-1 bg-gradient-to-t from-black/70 to-transparent p-3 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+        <div className="absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-end gap-1 bg-linear-to-t from-black/70 to-transparent p-3 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100">
           <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onPreview} title="Preview"><Eye size={15} /></button>
           <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onCopy} title="Copy URL"><Copy size={15} /></button>
           <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onRename} title="Rename"><FileText size={15} /></button>
@@ -824,9 +833,9 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
         </div>
         <button className="rounded-md p-1.5 text-muted transition hover:bg-white/5 hover:text-white" onClick={onDetails} title="Details"><Info size={16} /></button>
       </div>
-      <select className="mt-3 h-9 w-full rounded-md border border-border bg-[#0d1118] px-2 text-xs text-slate-200 outline-none transition focus:border-accent" value={item.folderId ?? ""} onChange={(event) => onMove(event.target.value || null)}>
-          <option value="">Root</option>
-          {folders.map((folder) => <option key={folder._id} value={folder._id}>{folder.name}</option>)}
+      <select className="mt-3 h-9 w-full rounded-md border border-border bg-panel px-2 text-xs text-slate-200 outline-none transition focus:border-accent" value={item.folderId ?? ""} onChange={(event) => onMove(event.target.value || null)}>
+        <option value="">Root</option>
+        {folders.map((folder) => <option key={folder._id} value={folder._id}>{folder.name}</option>)}
       </select>
     </motion.div>
   );

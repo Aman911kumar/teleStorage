@@ -73,8 +73,8 @@ export function DashboardLayout() {
                     onClick={() => setSidebarOpen(false)}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted transition duration-200 hover:bg-white/[0.055] hover:text-white",
-                        isActive && "bg-white/[0.075] text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.14)]"
+                        "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted transition duration-200 hover:bg-white/5.5 hover:text-white",
+                        isActive && "bg-white/7.5 text-white shadow-[inset_0_0_0_1px_rgba(148,163,184,0.14)]"
                       )
                     }
                   >
@@ -93,7 +93,7 @@ export function DashboardLayout() {
             <div className="hidden min-w-0 text-sm text-muted sm:block">
               <span className="text-slate-500">/</span> {crumbs.join(" / ") || "dashboard"}
             </div>
-            <button onClick={() => setCommandOpen(true)} className="ml-auto hidden h-10 min-w-80 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-3 text-left text-sm text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition hover:border-slate-500/70 hover:bg-white/[0.055] md:flex">
+            <button onClick={() => setCommandOpen(true)} className="ml-auto hidden h-10 min-w-80 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-3 text-left text-sm text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition hover:border-slate-500/70 hover:bg-white/5.5 md:flex">
               <Search size={15} /> Search or jump to <span className="ml-auto flex items-center gap-1 rounded border border-border bg-black/20 px-1.5 py-0.5 text-xs"><Command size={12} />K</span>
             </button>
             <Button
@@ -102,13 +102,13 @@ export function DashboardLayout() {
               className="hidden sm:inline-flex"
               onClick={() => {
                 requestUpload();
-                if (location.pathname !== "/app/media") navigate("/app/media");
+                if (location.pathname !== "/app/media") navigate("/app/media", { state: { openUpload: true } });
               }}
             >
               <FileUp size={15} /> Upload
             </Button>
             <Button variant="ghost" size="icon" aria-label="Notifications"><Bell size={18} /></Button>
-            <button className="flex h-10 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-2.5 text-sm text-white transition hover:bg-white/[0.055]">
+            <button className="flex h-10 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-2.5 text-sm text-white transition hover:bg-white/5.5">
               <span className="grid h-6 w-6 place-items-center rounded bg-accent/15 text-xs text-accent">{(user?.name ?? "U").slice(0, 1).toUpperCase()}</span>
               <span className="hidden max-w-28 truncate sm:block">{user?.name ?? "User"}</span>
             </button>

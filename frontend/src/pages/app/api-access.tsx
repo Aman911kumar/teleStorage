@@ -168,7 +168,7 @@ function KeyCard({
 
       <div className="mt-4 flex flex-wrap gap-2">
         {apiKey.scopes.map((scope) => (
-          <span key={scope} className="rounded-md border border-border bg-white/[0.03] px-2 py-1 text-xs text-slate-300">{scope}</span>
+          <span key={scope} className="rounded-md border border-border bg-white/3 px-2 py-1 text-xs text-slate-300">{scope}</span>
         ))}
       </div>
     </Card>
@@ -287,7 +287,7 @@ export default function ApiAccess() {
                 {scopes.map((scope) => (
                   <button
                     key={scope}
-                    className={`rounded-md border px-3 py-2 text-left text-xs transition ${selectedScopes.includes(scope) ? "border-accent bg-accent/10 text-white" : "border-border bg-white/[0.03] text-muted hover:text-white"}`}
+                    className={`rounded-md border px-3 py-2 text-left text-xs transition ${selectedScopes.includes(scope) ? "border-accent bg-accent/10 text-white" : "border-border bg-white/3 text-muted hover:text-white"}`}
                     onClick={() => toggleScope(scope)}
                     type="button"
                   >
@@ -367,7 +367,7 @@ export default function ApiAccess() {
                 <Button variant="secondary" size="sm" onClick={() => logsQuery.refetch()}><RefreshCw size={14} /> Refresh</Button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[620px] text-left text-sm">
+                <table className="w-full min-w-155 text-left text-sm">
                   <thead className="text-xs uppercase text-muted">
                     <tr>
                       <th className="py-2">Method</th>
