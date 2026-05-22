@@ -86,14 +86,14 @@ const result = await response.json();`,
 
 function Snippet({ title, value }: { title: string; value: string }) {
   return (
-    <Card className="p-5">
+    <Card className="p-4 sm:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-white">{title}</h2>
         <Button variant="secondary" size="sm" onClick={() => copy(value)}>
           <Copy size={14} /> Copy
         </Button>
       </div>
-      <pre className="overflow-auto rounded-md bg-[#090c13] p-4 text-sm leading-6 text-slate-300">
+      <pre className="thin-scrollbar overflow-auto rounded-md bg-[#090c13] p-3 text-xs leading-6 text-slate-300 sm:p-4 sm:text-sm">
         <code>{value}</code>
       </pre>
     </Card>
@@ -120,8 +120,8 @@ function KeyCard({
   isDeletingPermanently: boolean;
 }) {
   return (
-    <Card className="p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <Card className="p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <KeyRound size={17} className="text-accent" />
@@ -132,7 +132,7 @@ function KeyCard({
           </div>
           <p className="mt-2 text-xs text-muted">Last used {apiKey.lastUsedAt ? new Date(apiKey.lastUsedAt).toLocaleString() : "never"}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           {apiKey.status === "active" ? (
             <>
               <LoadingButton variant="secondary" size="sm" loading={isRegenerating} loadingText="Regenerating" onClick={onRegenerate}>
@@ -257,12 +257,12 @@ export default function ApiAccess() {
       {!workspaces.length ? (
         <EmptyState icon={KeyRound} title="No workspace connected" text="Connect a Telegram workspace before creating developer API credentials." action="Open Workspaces" />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,380px)_1fr] xl:gap-5">
           <div className="space-y-5">
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <div className="flex items-center gap-2 text-sm text-accent"><ShieldCheck size={16} /> Workspace</div>
               <select
-                className="mt-4 h-10 w-full rounded-md border border-border bg-[#0a0d13] px-3 text-sm text-white"
+                className="mt-4 h-11 w-full rounded-md border border-border bg-[#0a0d13] px-3 text-base text-white sm:h-10 sm:text-sm"
                 value={activeWorkspaceId ?? ""}
                 onChange={(event) => setWorkspaceId(event.target.value)}
               >
@@ -277,19 +277,19 @@ export default function ApiAccess() {
               </div>
             </Card>
 
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <div className="flex items-center gap-2 text-sm text-accent"><Plus size={16} /> Create API key</div>
               <input
-                className="mt-4 h-10 w-full rounded-md border border-border bg-[#0a0d13] px-3 text-sm text-white outline-none focus:border-accent"
+                className="mt-4 h-11 w-full rounded-md border border-border bg-[#0a0d13] px-3 text-base text-white outline-none focus:border-accent sm:h-10 sm:text-sm"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Key name"
               />
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
                 {scopes.map((scope) => (
                   <button
                     key={scope}
-                    className={`rounded-md border px-3 py-2 text-left text-xs transition ${selectedScopes.includes(scope) ? "border-accent bg-accent/10 text-white" : "border-border bg-white/3 text-muted hover:text-white"}`}
+                    className={`min-h-11 rounded-md border px-3 py-2 text-left text-xs transition ${selectedScopes.includes(scope) ? "border-accent bg-accent/10 text-white" : "border-border bg-white/3 text-muted hover:text-white"}`}
                     onClick={() => toggleScope(scope)}
                     type="button"
                   >
@@ -309,7 +309,7 @@ export default function ApiAccess() {
               <p className="mt-3 text-xs leading-5 text-muted">Secrets are shown once. Store them in your app environment variables and regenerate if they are lost.</p>
             </Card>
 
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <CheckCircle2 className="text-emerald-300" />
               <h2 className="mt-4 font-semibold text-white">Auth headers</h2>
               <p className="mt-2 text-sm leading-6 text-muted">Use <code>x-api-key</code> and <code>x-api-secret</code>, or send <code>Authorization: Bearer pk:sk</code>.</p>
@@ -317,14 +317,14 @@ export default function ApiAccess() {
           </div>
 
           <div className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 ["Upload", "POST /api/v1/upload", Terminal],
                 ["Files", "GET /api/v1/files", FileJson],
                 ["Search", "GET /api/v1/search", Activity],
                 ["Media", "PATCH /api/v1/media/:id", KeyRound]
               ].map(([title, path, Icon]) => (
-                <Card key={title as string} className="p-5">
+                <Card key={title as string} className="p-4 sm:p-5">
                   <Icon className="text-accent" />
                   <h2 className="mt-4 font-semibold text-white">{title as string}</h2>
                   <code className="mt-2 block text-xs text-muted">{path as string}</code>
@@ -360,15 +360,15 @@ export default function ApiAccess() {
             <Snippet title="Upload with JavaScript" value={examples.js} />
             <Snippet title="Create a folder" value={examples.folders} />
 
-            <Card className="p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
+            <Card className="p-4 sm:p-5">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-semibold text-white">Recent API requests</h2>
                   <p className="mt-1 text-sm text-muted">Latest v1 calls for this workspace.</p>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => logsQuery.refetch()}><RefreshCw size={14} /> Refresh</Button>
+                <Button className="w-full sm:w-auto" variant="secondary" size="sm" onClick={() => logsQuery.refetch()}><RefreshCw size={14} /> Refresh</Button>
               </div>
-              <div className="overflow-x-auto">
+              <div className="thin-scrollbar overflow-x-auto">
                 <table className="w-full min-w-155 text-left text-sm">
                   <thead className="text-xs uppercase text-muted">
                     <tr>

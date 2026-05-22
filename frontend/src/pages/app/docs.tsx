@@ -296,21 +296,36 @@ export default function Docs() {
 
   return (
     <PageShell wide eyebrow="Developer Docs" title="Build with the TeleStore API" description="Production-ready guides, copyable examples, and API references for Telegram-backed media storage.">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-6">
         <div className="min-w-0 space-y-8">
-          <section id="intro" className="surface rounded-xl p-6">
+          <Card className="rounded-lg p-3 xl:hidden">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-3.5 text-muted" size={16} />
+              <Input className="h-11 pl-10 text-base sm:text-sm" placeholder="Search docs" value={query} onChange={(event) => setQuery(event.target.value)} />
+            </div>
+            <div className="thin-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
+              {filteredSections.map((section) => (
+                <a key={section.id} href={`#${section.id}`} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-border bg-white/3 px-3 text-sm text-slate-300">
+                  <section.icon size={15} className="text-accent" />
+                  {section.title}
+                </a>
+              ))}
+            </div>
+          </Card>
+
+          <section id="intro" className="surface rounded-xl p-4 sm:p-6">
             <BookOpen className="text-accent" size={26} />
-            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white">Introduction</h2>
+            <h2 className="mt-4 text-xl font-semibold tracking-tight text-white sm:text-2xl">Introduction</h2>
             <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
               TeleStore is a self-hosted storage API where each workspace connects its own Telegram bot and channel. Your apps upload to TeleStore, TeleStore stores files in Telegram, and browsers stream through secure backend proxy URLs.
             </p>
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {["Dashboard uploads", "External API uploads", "Secure media streaming"].map((item) => <div key={item} className="rounded-lg bg-white/2.5 p-4 text-sm font-medium text-white"><CheckCircle2 className="mb-2 text-emerald-300" size={16} />{item}</div>)}
             </div>
           </section>
 
           <section id="quick-start" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Quick Start</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Quick Start</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <StepCard index={1} title="Create a workspace" text="Sign in, open Workspaces, and create a storage workspace for your app." />
               <StepCard index={2} title="Connect Telegram" text="Create a bot with BotFather, add it as channel admin, then paste bot token and channel ID." />
@@ -320,7 +335,7 @@ export default function Docs() {
           </section>
 
           <section id="auth" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Authentication</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Authentication</h2>
             <div className="grid gap-4 md:grid-cols-3">
               <Card className="rounded-lg p-5"><KeyRound className="text-accent" size={21} /><h3 className="mt-3 text-base font-semibold text-white">Public API key</h3><p className="mt-2 text-sm leading-6 text-slate-400">Identifies the workspace used by the request.</p></Card>
               <Card className="rounded-lg p-5"><LockKeyhole className="text-accent" size={21} /><h3 className="mt-3 text-base font-semibold text-white">Secret key</h3><p className="mt-2 text-sm leading-6 text-slate-400">Shown once. Store it only on servers or secure environments.</p></Card>
@@ -331,7 +346,7 @@ export default function Docs() {
           </section>
 
           <section id="upload" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Upload API</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Upload API</h2>
             <p className="max-w-5xl text-sm leading-7 text-slate-400">Use `POST /api/v1/upload` with multipart form data. Supported options include `file`, `files`, `folderId`, `visibility`, `tags`, `metadata`, and custom filename fields.</p>
             <CodeBlock title="Upload with cURL" value={dynamicSnippets.curlUpload} />
             <CodeBlock title="Multiple file upload" value={dynamicSnippets.multiUpload} />
@@ -339,7 +354,7 @@ export default function Docs() {
           </section>
 
           <section id="folders" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Folder API</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Folder API</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <CodeBlock title="Create nested folder" value={dynamicSnippets.createFolder} />
               <CodeBlock title="Move file to folder" value={dynamicSnippets.moveFile} />
@@ -347,9 +362,9 @@ export default function Docs() {
           </section>
 
           <section id="media" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Media API</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Media API</h2>
             <Card className="overflow-hidden rounded-lg">
-              <div className="grid grid-cols-[90px_1fr_2fr] border-b border-border bg-white/2.5 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted"><span>Method</span><span>Endpoint</span><span>Description</span></div>
+              <div className="hidden grid-cols-[90px_1fr_2fr] border-b border-border bg-white/2.5 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted md:grid"><span>Method</span><span>Endpoint</span><span>Description</span></div>
               {endpoints.map(([method, path, description]) => (
                 <div key={`${method}-${path}`} className="grid gap-2 border-b border-border/70 px-4 py-3 text-sm md:grid-cols-[90px_1fr_2fr]">
                   <span className="w-fit rounded bg-accent/12 px-2 py-1 text-xs font-semibold text-accent">{method}</span>
@@ -361,7 +376,7 @@ export default function Docs() {
           </section>
 
           <section id="streaming" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Streaming & Preview</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Streaming & Preview</h2>
             <Card className="rounded-lg p-5">
               <div className="grid gap-3 md:grid-cols-3">
                 {["Frontend requests /media/:id/view", "Backend fetches Telegram getFile", "Backend streams bytes to browser"].map((item, index) => <div key={item} className="rounded-lg bg-[#090c13] p-4 text-sm font-medium text-white"><span className="text-accent">0{index + 1}</span><p className="mt-2">{item}</p></div>)}
@@ -371,7 +386,7 @@ export default function Docs() {
           </section>
 
           <section id="sdk" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">SDK Usage</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">SDK Usage</h2>
             <div className="flex flex-wrap gap-2">
               {Object.keys(sdkSnippets).map((name) => <Button key={name} variant={tab === name ? "primary" : "secondary"} size="sm" onClick={() => setTab(name as typeof tab)}>{name}</Button>)}
             </div>
@@ -379,7 +394,7 @@ export default function Docs() {
           </section>
 
           <section id="errors" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Error Handling</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Error Handling</h2>
             <CodeBlock title="Error response" value={dynamicSnippets.responseError} language="json" />
             <Card className="overflow-hidden rounded-lg">
               {errors.map(([status, code, guidance]) => (
@@ -391,18 +406,18 @@ export default function Docs() {
           </section>
 
           <section id="rate-limits" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Rate Limits</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Rate Limits</h2>
             <Card className="rounded-lg p-5"><p className="text-sm leading-7 text-slate-400">Use client-side debouncing, exponential backoff, and avoid retry storms. Upload routes and streaming routes are separately limited to protect Telegram and your backend.</p></Card>
           </section>
 
           <section id="webhooks" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Webhooks</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Webhooks</h2>
             <p className="text-sm leading-7 text-slate-400">Webhook models are prepared for `upload.completed`, `upload.failed`, and `media.deleted` events.</p>
             <CodeBlock title="Webhook payload" value={dynamicSnippets.webhook} language="json" />
           </section>
 
           <section id="production" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Production Guide</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Production Guide</h2>
             <div className="grid gap-4 md:grid-cols-2">
               {[
                 ["Store secrets server-side", "Never place secret keys in public frontend bundles."],

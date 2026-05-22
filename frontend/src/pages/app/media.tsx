@@ -593,19 +593,19 @@ export default function Media() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-background">
-      <div className="sticky top-16 z-20 border-b border-border/80 bg-[#080b11]/86 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-420 flex-col gap-4 xl:flex-row xl:items-center">
+    <main className="min-h-[calc(100vh-4rem)] bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="sticky top-14 z-20 border-b border-border/80 bg-[#080b11]/90 px-3 py-3 backdrop-blur-xl sm:top-16 sm:px-6 sm:py-4 lg:px-8">
+        <div className="mx-auto flex max-w-420 flex-col gap-3 xl:flex-row xl:items-center">
           <div className="flex min-w-0 items-center gap-2 text-sm text-muted xl:w-72">
             <button className="text-white hover:text-accent" onClick={() => setActiveFolder(null)}>Workspace</button>
             {activeFolder && <><ChevronRight size={15} /><button className="truncate text-white">{activeFolder.name}</button></>}
           </div>
           <div className="relative flex-1 xl:max-w-xl">
             <Search className="pointer-events-none absolute left-3 top-3 text-muted" size={16} />
-            <Input className="pl-9" placeholder="Search files, tags and folders" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <Input className="h-11 pl-9 text-base sm:h-10 sm:text-sm" placeholder="Search files, tags and folders" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
-          <div className="flex flex-wrap gap-2 xl:ml-auto">
-            <select className="h-10 rounded-md border border-border bg-panel px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:ml-auto">
+            <select className="col-span-2 h-11 min-w-0 rounded-md border border-border bg-panel px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:col-span-1 sm:h-10" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
               {workspacesLoading ? <option>Loading workspaces...</option> : workspaces.map((workspace) => <option key={workspace._id} value={workspace._id}>{workspace.name}</option>)}
             </select>
             <LoadingButton variant="secondary" loading={syncMutation.isPending} loadingText="Syncing..." disabled={!resolvedWorkspaceId} onClick={() => resolvedWorkspaceId && syncMutation.mutate(resolvedWorkspaceId)}><RefreshCw size={16} /> Sync</LoadingButton>
@@ -639,33 +639,48 @@ export default function Media() {
           </div>
         </aside>
 
-        <section className="min-w-0 p-4 sm:p-6 lg:p-8">
+        <section className="min-w-0 p-3 sm:p-6 lg:p-8">
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            {filterItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setFilter(item.id)}
+                className={cn(
+                  "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-border bg-white/[0.035] px-3 text-sm text-muted",
+                  filter === item.id && "border-accent/40 bg-accent/15 text-white"
+                )}
+              >
+                <item.icon size={15} />
+                {item.label}
+              </button>
+            ))}
+          </div>
           <Card className="mb-6 overflow-hidden p-0">
             <div
-              className="grid gap-5 p-5 lg:grid-cols-[1.2fr_0.8fr]"
+              className="grid gap-4 p-3 sm:p-5 lg:grid-cols-[1.2fr_0.8fr]"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
                 enqueue(event.dataTransfer.files);
               }}
             >
-              <div className="rounded-lg border border-dashed border-slate-700 bg-[linear-gradient(135deg,rgba(91,140,255,0.12),rgba(255,255,255,0.025))] p-6 transition hover:border-accent/70">
+              <div className="rounded-lg border border-dashed border-slate-700 bg-[linear-gradient(135deg,rgba(91,140,255,0.12),rgba(255,255,255,0.025))] p-4 transition hover:border-accent/70 sm:p-6">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="inline-flex items-center gap-2 rounded-md border border-accent/20 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
                       <UploadCloud size={14} /> Universal uploader
                     </div>
-                    <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white">Drop files to upload</h2>
+                    <h2 className="mt-4 text-xl font-semibold tracking-tight text-white sm:text-2xl">Drop files to upload</h2>
                     <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
                       Upload images, videos, PDFs, ZIPs and documents into {activeFolder ? activeFolder.name : "Root"}. Files start automatically with up to {MAX_CONCURRENT_UPLOADS} parallel uploads.
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid gap-2 sm:flex sm:flex-wrap">
                     <Button onClick={() => requireWorkspace() && uploadInputRef.current?.click()}><UploadCloud size={16} /> Choose files</Button>
                     <Button variant="secondary" onClick={() => requireWorkspace() && folderInputRef.current?.click()}><FolderPlus size={16} /> Upload folder</Button>
                   </div>
                 </div>
-                <div className="mt-6 grid gap-3 sm:grid-cols-4">
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-4">
                   <UploadMetric label="Single file limit" value="2 GB" />
                   <UploadMetric label="Queue" value={String(queueStats.total)} />
                   <UploadMetric label="Active" value={String(queueStats.uploading)} />
@@ -673,7 +688,7 @@ export default function Media() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-[#090c13]/70 p-5">
+              <div className="rounded-lg border border-border bg-[#090c13]/70 p-4 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-white">{activeWorkspace?.name ?? "No workspace"}</p>
@@ -698,15 +713,15 @@ export default function Media() {
             </div>
           </Card>
 
-          <Card className="sticky top-22 z-10 mb-6 p-3 backdrop-blur-xl">
+          <Card className="sticky top-[8.75rem] z-10 mb-5 p-2 backdrop-blur-xl sm:top-22 sm:mb-6 sm:p-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
                 <Button variant={view === "grid" ? "primary" : "secondary"} size="sm" onClick={() => setView("grid")}><Grid2X2 size={15} /></Button>
                 <Button variant={view === "list" ? "primary" : "secondary"} size="sm" onClick={() => setView("list")}><LayoutList size={15} /></Button>
                 <Button variant="outline" size="sm">Sort</Button>
                 <Button variant="outline" size="sm">Filter</Button>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
                 {currentFiles.length > 0 && (
                   <Button variant="outline" size="sm" onClick={allCurrentSelected ? deselectAllCurrent : selectAllCurrent}>
                     {allCurrentSelected ? "Deselect all" : "Select all"}
@@ -729,7 +744,7 @@ export default function Media() {
           ) : !currentFolders.length && !currentFiles.length ? (
             <EmptyState icon={Folder} title="This folder is empty" text="Upload files or create a folder to start organizing your media." action="Upload files" onAction={() => requireWorkspace() && openUploadModal()} />
           ) : view === "grid" ? (
-            <motion.div layout className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
+            <motion.div layout className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
               {currentFolders.map((folder) => (
                 <FolderCard
                   key={folder._id}
@@ -743,16 +758,16 @@ export default function Media() {
             </motion.div>
           ) : (
             <Card className="overflow-hidden">
-              <div className="grid grid-cols-[36px_1fr_140px_130px_130px_44px] border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-muted">
+              <div className="hidden grid-cols-[36px_1fr_140px_130px_130px_44px] border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-muted md:grid">
                 <span /><span>Name</span><span>Type</span><span>Size</span><span>Uploaded</span><span />
               </div>
               {[...currentFolders.map((folder) => ({ type: "folder" as const, folder })), ...currentFiles.map((item) => ({ type: "file" as const, item }))].map((entry) => entry.type === "folder" ? (
-                <div key={entry.folder._id} className="grid grid-cols-[36px_1fr_140px_130px_130px_120px] items-center border-b border-border/70 px-4 py-3 text-left text-sm hover:bg-white/5">
+                <div key={entry.folder._id} className="grid grid-cols-[32px_1fr_auto] gap-3 border-b border-border/70 px-3 py-3 text-left text-sm hover:bg-white/5 md:grid-cols-[36px_1fr_140px_130px_130px_120px] md:items-center md:px-4">
                   <Folder className="text-accent" size={18} />
                   <button className="truncate text-left font-medium text-white" onClick={() => setActiveFolder(entry.folder)}>{entry.folder.name}</button>
-                  <span className="text-muted">Folder</span>
-                  <span className="text-muted">-</span>
-                  <span className="text-muted">-</span>
+                  <span className="hidden text-muted md:block">Folder</span>
+                  <span className="hidden text-muted md:block">-</span>
+                  <span className="hidden text-muted md:block">-</span>
                   <div className="flex justify-end gap-1">
                     <button className="rounded p-1.5 text-muted hover:bg-white/5 hover:text-white" onClick={() => startRenameFolder(entry.folder)} title="Rename folder"><FileText size={15} /></button>
                     <button className="rounded p-1.5 text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={() => setDeleteFolderTarget(entry.folder)} title="Delete folder"><Trash2 size={15} /></button>
@@ -795,7 +810,7 @@ export default function Media() {
 
 function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem; onOpen: () => void; onRename: () => void; onDelete: () => void }) {
   return (
-    <motion.div layout className="surface group flex min-h-64 flex-col rounded-lg p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70">
+    <motion.div layout className="surface group flex min-h-56 flex-col rounded-lg p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70 sm:min-h-64 sm:p-4">
       <button onClick={onOpen} className="grid aspect-4/3 place-items-center rounded-md border border-border/70 bg-white/2.5">
         <Folder className="text-accent" size={42} />
       </button>
@@ -805,8 +820,8 @@ function FolderCard({ folder, onOpen, onRename, onDelete }: { folder: FolderItem
           <p className="mt-1 truncate text-xs leading-5 text-muted">{folder.path}</p>
         </button>
         <div className="flex gap-1 opacity-100 transition">
-          <button className="rounded p-1.5 text-muted hover:bg-white/5 hover:text-white" onClick={onRename} title="Rename folder"><FileText size={15} /></button>
-          <button className="rounded p-1.5 text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={onDelete} title="Delete folder"><Trash2 size={15} /></button>
+          <button className="grid h-9 w-9 place-items-center rounded text-muted hover:bg-white/5 hover:text-white" onClick={onRename} title="Rename folder"><FileText size={15} /></button>
+          <button className="grid h-9 w-9 place-items-center rounded text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={onDelete} title="Delete folder"><Trash2 size={15} /></button>
         </div>
       </div>
     </motion.div>
@@ -818,13 +833,14 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
     <motion.div layout className={cn("surface group rounded-lg p-3 transition duration-200 hover:-translate-y-0.5 hover:border-slate-500/70", selected && "border-accent ring-1 ring-accent/40")}>
       <div className="relative aspect-4/3 overflow-hidden rounded-md border border-border/70 bg-[#090c13] text-accent">
         {item.mimeType.startsWith("image/") ? <MediaImage id={item._id} alt={item.originalName} /> : <div className="grid h-full place-items-center"><MediaTypeIcon item={item} size={40} /></div>}
-        <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="absolute left-3 top-3 h-4 w-4 accent-[#5b8cff]" />
-        <div className="absolute inset-x-0 bottom-0 flex translate-y-2 items-center justify-end gap-1 bg-linear-to-t from-black/70 to-transparent p-3 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100">
-          <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onPreview} title="Preview"><Eye size={15} /></button>
-          <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onCopy} title="Copy URL"><Copy size={15} /></button>
-          <button className="rounded-md bg-black/55 p-2 text-white backdrop-blur transition hover:bg-white/15" onClick={onRename} title="Rename"><FileText size={15} /></button>
-          {onRestore && <button className="rounded-md bg-emerald-500/90 p-2 text-white backdrop-blur transition hover:bg-emerald-400" onClick={onRestore} title="Restore"><RotateCcw size={15} /></button>}
-          <button className="rounded-md bg-red-500/90 p-2 text-white backdrop-blur transition hover:bg-red-400" onClick={onDelete} title="Delete"><Trash2 size={15} /></button>
+        <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="absolute left-3 top-3 h-5 w-5 accent-[#5b8cff]" />
+        <button className="absolute inset-0" onClick={onPreview} aria-label={`Preview ${item.originalName}`} />
+        <div className="absolute inset-x-0 bottom-0 flex translate-y-0 items-center justify-end gap-1 bg-linear-to-t from-black/75 to-transparent p-2 opacity-100 transition duration-200 sm:translate-y-2 sm:p-3 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
+          <button className="grid h-10 w-10 place-items-center rounded-md bg-black/55 text-white backdrop-blur transition hover:bg-white/15" onClick={onPreview} title="Preview"><Eye size={15} /></button>
+          <button className="grid h-10 w-10 place-items-center rounded-md bg-black/55 text-white backdrop-blur transition hover:bg-white/15" onClick={onCopy} title="Copy URL"><Copy size={15} /></button>
+          <button className="grid h-10 w-10 place-items-center rounded-md bg-black/55 text-white backdrop-blur transition hover:bg-white/15" onClick={onRename} title="Rename"><FileText size={15} /></button>
+          {onRestore && <button className="grid h-10 w-10 place-items-center rounded-md bg-emerald-500/90 text-white backdrop-blur transition hover:bg-emerald-400" onClick={onRestore} title="Restore"><RotateCcw size={15} /></button>}
+          <button className="grid h-10 w-10 place-items-center rounded-md bg-red-500/90 text-white backdrop-blur transition hover:bg-red-400" onClick={onDelete} title="Delete"><Trash2 size={15} /></button>
         </div>
       </div>
       <div className="mt-3 flex items-start justify-between gap-3">
@@ -832,9 +848,9 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
           <p className="truncate text-sm font-semibold leading-5 text-white">{item.originalName}</p>
           <p className="mt-1 text-xs leading-5 text-muted">{formatBytes(item.size)} - {new Date(item.createdAt).toLocaleDateString()}</p>
         </div>
-        <button className="rounded-md p-1.5 text-muted transition hover:bg-white/5 hover:text-white" onClick={onDetails} title="Details"><Info size={16} /></button>
+        <button className="grid h-10 w-10 place-items-center rounded-md text-muted transition hover:bg-white/5 hover:text-white" onClick={onDetails} title="Details"><Info size={16} /></button>
       </div>
-      <select className="mt-3 h-9 w-full rounded-md border border-border bg-panel px-2 text-xs text-slate-200 outline-none transition focus:border-accent" value={item.folderId ?? ""} onChange={(event) => onMove(event.target.value || null)}>
+      <select className="mt-3 h-11 w-full rounded-md border border-border bg-panel px-2 text-sm text-slate-200 outline-none transition focus:border-accent sm:h-9 sm:text-xs" value={item.folderId ?? ""} onChange={(event) => onMove(event.target.value || null)}>
         <option value="">Root</option>
         {folders.map((folder) => <option key={folder._id} value={folder._id}>{folder.name}</option>)}
       </select>
@@ -844,14 +860,19 @@ function FileCard({ item, selected, folders, onSelect, onPreview, onDetails, onC
 
 function FileRow({ item, selected, onSelect, onPreview, onDetails, onCopy, onRename, onRestore, onDelete }: { item: MediaItem; selected: boolean; onSelect: () => void; onPreview: () => void; onDetails: () => void; onCopy: () => void; onRename: () => void; onRestore?: () => void; onDelete: () => void }) {
   return (
-    <div className="grid grid-cols-[36px_1fr_140px_130px_130px_44px] items-center border-b border-border/70 px-4 py-3 text-sm hover:bg-white/5">
-      <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="h-4 w-4 accent-[#5b8cff]" />
+    <div className="grid grid-cols-[32px_1fr_auto] gap-3 border-b border-border/70 px-3 py-3 text-sm hover:bg-white/5 md:grid-cols-[36px_1fr_140px_130px_130px_44px] md:items-center md:px-4">
+      <input aria-label="Select file" type="checkbox" checked={selected} onChange={onSelect} className="mt-1 h-5 w-5 accent-[#5b8cff] md:mt-0 md:h-4 md:w-4" />
       <button className="flex min-w-0 items-center gap-3 text-left" onClick={onPreview}><MediaTypeIcon item={item} /><span className="truncate font-medium text-white">{item.originalName}</span></button>
-      <span className="truncate text-muted">{item.mimeType}</span>
-      <span className="text-muted">{formatBytes(item.size)}</span>
-      <span className="text-muted">{new Date(item.createdAt).toLocaleDateString()}</span>
-      <button className="rounded p-1 text-muted hover:bg-white/5 hover:text-white" onClick={onDetails}><MoreHorizontal size={17} /></button>
-      <div className="col-span-6 hidden gap-2 py-2 md:flex">
+      <span className="hidden truncate text-muted md:block">{item.mimeType}</span>
+      <span className="hidden text-muted md:block">{formatBytes(item.size)}</span>
+      <span className="hidden text-muted md:block">{new Date(item.createdAt).toLocaleDateString()}</span>
+      <button className="grid h-10 w-10 place-items-center rounded text-muted hover:bg-white/5 hover:text-white" onClick={onDetails}><MoreHorizontal size={17} /></button>
+      <div className="col-span-3 flex flex-wrap gap-2 pl-8 text-xs text-muted md:col-span-6 md:pl-0">
+        <span>{formatBytes(item.size)}</span>
+        <span>{item.mimeType}</span>
+        <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+      </div>
+      <div className="col-span-3 flex flex-wrap gap-2 py-1 pl-8 md:col-span-6 md:py-2 md:pl-0">
         <Button size="sm" variant="secondary" onClick={onCopy}><Copy size={14} /> Copy URL</Button>
         <Button size="sm" variant="secondary" onClick={onRename}><FileText size={14} /> Rename</Button>
         {onRestore && <Button size="sm" variant="secondary" onClick={onRestore}><RotateCcw size={14} /> Restore</Button>}
@@ -903,18 +924,18 @@ function UploadModal({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.div initial={{ y: 16, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 16, opacity: 0, scale: 0.98 }} className="surface w-full max-w-2xl rounded-xl p-5 shadow-2xl">
+        <motion.div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div initial={{ y: 28, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 28, opacity: 0, scale: 0.98 }} className="surface flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-2xl p-4 shadow-2xl sm:rounded-xl sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-white">Upload files</h2>
                 <p className="mt-1 text-xs text-muted">Up to 2 GB per file. {activeUploads ? `${activeUploads} active uploads` : "Uploads start automatically."}</p>
               </div>
-              <button className="text-muted hover:text-white" onClick={onClose}><X size={18} /></button>
+              <button className="grid h-11 w-11 place-items-center rounded-md text-muted hover:bg-white/5 hover:text-white" onClick={onClose}><X size={18} /></button>
             </div>
             <label
               className={cn(
-                "mt-4 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-700 bg-[linear-gradient(180deg,rgba(109,141,255,0.08),rgba(255,255,255,0.025))] text-center transition hover:border-accent/70 hover:bg-accent/10",
+                "mt-4 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-700 bg-[linear-gradient(180deg,rgba(109,141,255,0.08),rgba(255,255,255,0.025))] px-4 text-center transition hover:border-accent/70 hover:bg-accent/10 sm:min-h-48",
                 isDragging && "border-accent bg-accent/15 shadow-[0_0_0_1px_rgba(109,141,255,0.25),0_20px_70px_rgba(82,111,255,0.18)]"
               )}
               onDragEnter={(event) => {
@@ -945,14 +966,14 @@ function UploadModal({
               <input className="sr-only" type="file" multiple onChange={(event) => { onFiles(event.target.files); event.currentTarget.value = ""; }} />
             </label>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                 <Button size="sm" variant="secondary" onClick={onPick}><UploadCloud size={14} /> Choose files</Button>
                 <Button size="sm" variant="outline" onClick={onPickFolder}><FolderPlus size={14} /> Upload folder</Button>
-                {!!queuedUploads && <Button size="sm" onClick={onStartQueued}><UploadCloud size={14} /> Start uploads</Button>}
+                {!!queuedUploads && <Button className="col-span-2" size="sm" onClick={onStartQueued}><UploadCloud size={14} /> Start uploads</Button>}
               </div>
               {!!completedUploads && <Button size="sm" variant="ghost" onClick={onClearCompleted}>Clear completed</Button>}
             </div>
-            <div className="mt-4 max-h-80 space-y-3 overflow-auto thin-scrollbar">
+            <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-auto thin-scrollbar sm:max-h-80">
               {queue.map((item) => (
                 <div key={item.id} className="rounded-lg border border-border bg-white/[0.035] p-3">
                   <div className="flex items-center gap-3">
@@ -975,7 +996,7 @@ function UploadModal({
                 </div>
               ))}
             </div>
-            {!queue.length && <div className="mt-4 flex justify-end"><Button onClick={onPick}><UploadCloud size={16} /> Choose files</Button></div>}
+            {!queue.length && <div className="mt-4 grid sm:flex sm:justify-end"><Button onClick={onPick}><UploadCloud size={16} /> Choose files</Button></div>}
           </motion.div>
         </motion.div>
       )}
@@ -995,11 +1016,11 @@ function uploadStatusLabel(item: UploadItem) {
 function FolderModal({ open, title = "Create folder", submitLabel = "Create", value, loading, onChange, onClose, onSubmit }: { open: boolean; title?: string; submitLabel?: string; value: string; loading: boolean; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void }) {
   return (
     <AnimatePresence>
-      {open && <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <Card className="w-full max-w-md p-5">
+      {open && <motion.div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <Card className="w-full max-w-md rounded-t-2xl p-5 sm:rounded-lg">
           <h2 className="font-semibold text-white">{title}</h2>
           <Input className="mt-4" placeholder="Folder name" value={value} onChange={(event) => onChange(event.target.value)} autoFocus />
-          <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><LoadingButton loading={loading} loadingText="Saving..." onClick={onSubmit}><FolderPlus size={15} /> {submitLabel}</LoadingButton></div>
+          <div className="mt-5 grid gap-2 sm:flex sm:justify-end"><Button variant="ghost" onClick={onClose}>Cancel</Button><LoadingButton loading={loading} loadingText="Saving..." onClick={onSubmit}><FolderPlus size={15} /> {submitLabel}</LoadingButton></div>
         </Card>
       </motion.div>}
     </AnimatePresence>
@@ -1009,12 +1030,12 @@ function FolderModal({ open, title = "Create folder", submitLabel = "Create", va
 function DeleteFolderModal({ folder, loading, onClose, onConfirm }: { folder: FolderItem | null; loading: boolean; onClose: () => void; onConfirm: () => void }) {
   return (
     <AnimatePresence>
-      {folder && <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <Card className="w-full max-w-md border-red-500/30 p-5">
+      {folder && <motion.div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <Card className="w-full max-w-md rounded-t-2xl border-red-500/30 p-5 sm:rounded-lg">
           <div className="flex items-center gap-3 text-red-300"><Trash2 /><h2 className="font-semibold">Delete folder?</h2></div>
           <p className="mt-3 text-sm leading-6 text-muted">Only empty folders can be deleted. Files inside this folder will stay untouched unless you delete or move them first.</p>
           <p className="mt-3 truncate rounded bg-[#090c13] p-2 text-sm text-white">{folder.path}</p>
-          <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button><LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete folder</LoadingButton></div>
+          <div className="mt-5 grid gap-2 sm:flex sm:justify-end"><Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button><LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete folder</LoadingButton></div>
         </Card>
       </motion.div>}
     </AnimatePresence>
@@ -1039,22 +1060,22 @@ function PreviewModal({ item, onClose, onCopy, onNext, onPrevious, hasMultiple }
 
   return (
     <AnimatePresence>
-      {item && <motion.div className="fixed inset-0 z-50 bg-black/82 p-4 backdrop-blur-xl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
+      {item && <motion.div className="fixed inset-0 z-50 bg-black/82 p-0 backdrop-blur-xl sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 border-b border-white/10 bg-black/45 px-3 py-3 backdrop-blur-xl sm:gap-3 sm:px-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{item.originalName}</p>
             <p className="text-xs text-slate-400">{formatBytes(item.size)} - {item.mimeType}</p>
           </div>
-          <div className="flex items-center gap-2">
-            {item.mimeType.startsWith("image/") && <><Button variant="ghost" size="sm" onClick={() => setZoom((value) => Math.max(value - 0.2, 0.6))}><ZoomOut size={15} /></Button><Button variant="ghost" size="sm" onClick={() => setZoom((value) => Math.min(value + 0.2, 2.4))}><ZoomIn size={15} /></Button></>}
-            <Button variant="secondary" size="sm" onClick={() => onCopy(item)}><Copy size={15} /> Copy</Button>
-            <Button variant="secondary" size="sm" onClick={() => window.open(resolveMediaUrl(item, "download"), "_blank")}><Download size={15} /> Open</Button>
-            <button className="rounded-md bg-white/10 p-2 text-white transition hover:bg-white/15" onClick={onClose}><X size={18} /></button>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {item.mimeType.startsWith("image/") && <><Button className="hidden sm:inline-flex" variant="ghost" size="sm" onClick={() => setZoom((value) => Math.max(value - 0.2, 0.6))}><ZoomOut size={15} /></Button><Button className="hidden sm:inline-flex" variant="ghost" size="sm" onClick={() => setZoom((value) => Math.min(value + 0.2, 2.4))}><ZoomIn size={15} /></Button></>}
+            <Button className="hidden sm:inline-flex" variant="secondary" size="sm" onClick={() => onCopy(item)}><Copy size={15} /> Copy</Button>
+            <Button variant="secondary" size="icon" onClick={() => window.open(resolveMediaUrl(item, "download"), "_blank")} aria-label="Open file"><Download size={15} /></Button>
+            <button className="grid h-11 w-11 place-items-center rounded-md bg-white/10 text-white transition hover:bg-white/15" onClick={onClose}><X size={18} /></button>
           </div>
         </div>
-        {hasMultiple && <button className="absolute left-5 top-1/2 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur transition hover:bg-white/15" onClick={onPrevious}><ChevronLeft size={20} /></button>}
-        {hasMultiple && <button className="absolute right-5 top-1/2 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur transition hover:bg-white/15" onClick={onNext}><ChevronRight size={20} /></button>}
-        <div className="grid h-full place-items-center pt-14">
+        {hasMultiple && <button className="absolute bottom-6 left-4 z-10 grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/15 sm:bottom-auto sm:left-5 sm:top-1/2" onClick={onPrevious}><ChevronLeft size={20} /></button>}
+        {hasMultiple && <button className="absolute bottom-6 right-4 z-10 grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/15 sm:bottom-auto sm:right-5 sm:top-1/2" onClick={onNext}><ChevronRight size={20} /></button>}
+        <div className="grid h-full place-items-center px-3 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-20 sm:px-0 sm:pb-0 sm:pt-14">
           {item.mimeType.startsWith("image/") ? (
             <div className="max-h-[84vh] max-w-[92vw] overflow-auto thin-scrollbar">
               <img src={resolveMediaUrl(item)} alt={item.originalName} loading="lazy" onError={() => toast.error("Image preview failed")} className="rounded-lg object-contain shadow-2xl transition duration-200" style={{ maxHeight: "84vh", maxWidth: "92vw", transform: `scale(${zoom})` }} />
@@ -1069,12 +1090,12 @@ function PreviewModal({ item, onClose, onCopy, onNext, onPrevious, hasMultiple }
 function DetailsPanel({ item, onClose, onCopy }: { item: MediaItem | null; onClose: () => void; onCopy: (item: MediaItem) => void }) {
   return (
     <AnimatePresence>
-      {item && <motion.aside initial={{ x: 360 }} animate={{ x: 0 }} exit={{ x: 360 }} className="fixed inset-y-0 right-0 z-40 w-full max-w-sm border-l border-border bg-panel p-5 shadow-2xl">
+      {item && <motion.aside initial={{ x: 360 }} animate={{ x: 0 }} exit={{ x: 360 }} className="fixed inset-y-0 right-0 z-40 w-full overflow-y-auto border-l border-border bg-panel p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm">
         <div className="flex items-center justify-between"><h2 className="font-semibold text-white">Details</h2><button className="text-muted hover:text-white" onClick={onClose}><X size={18} /></button></div>
         <div className="mt-6 aspect-video overflow-hidden rounded-lg border border-border bg-[#090c13] text-accent">{item.mimeType.startsWith("image/") ? <MediaImage id={item._id} alt={item.originalName} /> : <div className="grid h-full place-items-center"><MediaTypeIcon item={item} size={34} /></div>}</div>
         <div className="mt-5 space-y-3 text-sm">
           {[["Name", item.originalName], ["Size", formatBytes(item.size)], ["Type", item.mimeType], ["Status", item.status], ["Uploaded", new Date(item.createdAt).toLocaleString()], ["Telegram", "Stored"]].map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-4 border-b border-border pb-2"><span className="text-muted">{label}</span><span className="truncate text-white">{value}</span></div>
+            <div key={label} className="grid gap-1 border-b border-border pb-2 sm:flex sm:justify-between sm:gap-4"><span className="text-muted">{label}</span><span className="break-words text-white sm:truncate">{value}</span></div>
           ))}
         </div>
         <Button className="mt-5 w-full" onClick={() => onCopy(item)}><Copy size={15} /> Copy URL</Button>
@@ -1087,12 +1108,12 @@ function DeleteModal({ item, loading, onClose, onConfirm }: { item: MediaItem | 
   const isTrashItem = item?.status === "deleted";
   return (
     <AnimatePresence>
-      {item && <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <Card className="w-full max-w-md border-red-500/30 p-5">
+      {item && <motion.div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <Card className="w-full max-w-md rounded-t-2xl border-red-500/30 p-5 sm:rounded-lg">
           <div className="flex items-center gap-3 text-red-300"><Trash2 /><h2 className="font-semibold">{isTrashItem ? "Delete forever?" : "Move to trash?"}</h2></div>
           <p className="mt-3 text-sm leading-6 text-muted">{isTrashItem ? "This permanently removes the database record." : "This removes the Telegram message and moves the file record to Trash."}</p>
           <p className="mt-3 truncate rounded bg-[#090c13] p-2 text-sm text-white">{item.originalName}</p>
-          <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button><LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete</LoadingButton></div>
+          <div className="mt-5 grid gap-2 sm:flex sm:justify-end"><Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button><LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete</LoadingButton></div>
         </Card>
       </motion.div>}
     </AnimatePresence>
@@ -1102,13 +1123,13 @@ function DeleteModal({ item, loading, onClose, onConfirm }: { item: MediaItem | 
 function BulkDeleteModal({ count, loading, permanent, onClose, onConfirm }: { count: number; loading: boolean; permanent: boolean; onClose: () => void; onConfirm: () => void }) {
   return (
     <AnimatePresence>
-      {count > 0 && <motion.div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <Card className="w-full max-w-md border-red-500/30 p-5">
+      {count > 0 && <motion.div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <Card className="w-full max-w-md rounded-t-2xl border-red-500/30 p-5 sm:rounded-lg">
           <div className="flex items-center gap-3 text-red-300"><Trash2 /><h2 className="font-semibold">{permanent ? "Delete selected forever?" : "Delete selected media?"}</h2></div>
           <p className="mt-3 text-sm leading-6 text-muted">
             {permanent ? `This permanently removes ${count} selected file${count > 1 ? "s" : ""} from the project.` : `This removes ${count} selected file${count > 1 ? "s" : ""} from Telegram and moves the record to Trash.`}
           </p>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-5 grid gap-2 sm:flex sm:justify-end">
             <Button variant="ghost" disabled={loading} onClick={onClose}>Cancel</Button>
             <LoadingButton className="bg-red-500 hover:bg-red-400" loading={loading} loadingText="Deleting..." onClick={onConfirm}><Trash2 size={15} /> Delete {count}</LoadingButton>
           </div>

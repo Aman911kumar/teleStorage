@@ -136,8 +136,8 @@ export default function Workspaces() {
 
   return (
     <PageShell eyebrow="Workspaces" title="Connect Telegram storage" description="Create a workspace by connecting your own Telegram bot and channel. Tokens are encrypted before storage and masked in the UI.">
-      <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-        <Card className={cn("relative p-5", failed && "animate-shake border-red-500/50")}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_1fr] xl:gap-5">
+        <Card className={cn("relative p-4 sm:p-5", failed && "animate-shake border-red-500/50")}>
           {(validateMutation.isPending || createMutation.isPending) && (
             <div className="absolute inset-0 z-10 grid place-items-center rounded-lg bg-background/55 backdrop-blur-sm">
               <div className="flex items-center gap-2 rounded-md border border-border bg-panel px-4 py-2 text-sm text-white">
@@ -149,15 +149,15 @@ export default function Workspaces() {
           <div className="flex items-center gap-2 text-sm text-accent"><Send size={16} /> Onboarding</div>
           <div className="mt-5 space-y-3">
             <div>
-              <Input disabled={createMutation.isPending} className={fieldClass("name")} placeholder="Workspace name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              <Input disabled={createMutation.isPending} className={cn("h-11 text-base sm:h-10 sm:text-sm", fieldClass("name"))} placeholder="Workspace name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               {fieldErrors.name && <p className="mt-1 text-xs text-red-300">{fieldErrors.name}</p>}
             </div>
             <div>
-              <Input disabled={busy} className={fieldClass("telegramBotToken")} placeholder="Telegram bot token" type="password" value={form.telegramBotToken} onChange={(event) => setForm({ ...form, telegramBotToken: event.target.value })} />
+              <Input disabled={busy} className={cn("h-11 text-base sm:h-10 sm:text-sm", fieldClass("telegramBotToken"))} placeholder="Telegram bot token" type="password" value={form.telegramBotToken} onChange={(event) => setForm({ ...form, telegramBotToken: event.target.value })} />
               {fieldErrors.telegramBotToken && <p className="mt-1 text-xs text-red-300">{fieldErrors.telegramBotToken}</p>}
             </div>
             <div>
-              <Input disabled={busy} className={fieldClass("telegramChannelId")} placeholder="Telegram channel ID, e.g. -1001234567890" value={form.telegramChannelId} onChange={(event) => setForm({ ...form, telegramChannelId: event.target.value })} />
+              <Input disabled={busy} className={cn("h-11 text-base sm:h-10 sm:text-sm", fieldClass("telegramChannelId"))} placeholder="Telegram channel ID, e.g. -1001234567890" value={form.telegramChannelId} onChange={(event) => setForm({ ...form, telegramChannelId: event.target.value })} />
               {fieldErrors.telegramChannelId && <p className="mt-1 text-xs text-red-300">{fieldErrors.telegramChannelId}</p>}
             </div>
             {validated && <p className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300"><CheckCircle2 size={16} /> {validated}</p>}
@@ -177,7 +177,7 @@ export default function Workspaces() {
           {isLoading ? <PageLoading cards={2} /> : isError ? (
             <EmptyState icon={Database} title="Unable to load workspaces" text="The backend did not respond. Check your connection and retry." action="Retry" onAction={() => refetch()} />
           ) : data.length ? data.map((workspace) => (
-            <Card key={workspace._id} className="p-5">
+            <Card key={workspace._id} className="p-4 sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="mb-3 inline-flex items-center gap-2 rounded bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300"><ShieldCheck size={13} /> {workspace.health?.status ?? "healthy"}</div>
@@ -192,7 +192,7 @@ export default function Workspaces() {
                     <code className="break-all text-slate-300">{workspace.publicProjectId}</code>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm sm:min-w-52">
                   <div>
                     <p className="text-muted">Storage</p>
                     <p className="text-white">{formatBytes(workspace.storageUsed)}</p>
@@ -201,9 +201,9 @@ export default function Workspaces() {
                   <div><p className="text-muted">Uploads</p><p className="text-white">{workspace.uploadCount}</p></div>
                 </div>
               </div>
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
                 <LoadingButton size="sm" variant="secondary" disabled={deleteMutation.isPending} onClick={() => startEdit(workspace)}>Edit</LoadingButton>
-                <LoadingButton size="sm" variant="secondary" disabled={deleteMutation.isPending} onClick={() => setDeleteTarget(workspace)}>Delete</LoadingButton>
+                <LoadingButton size="sm" variant="destructive" disabled={deleteMutation.isPending} onClick={() => setDeleteTarget(workspace)}>Delete</LoadingButton>
               </div>
             </Card>
           )) : <EmptyState icon={Database} title="No Telegram workspace connected" text="Connect your Telegram bot to begin storing media inside your own channel." action="Connect workspace" />}
@@ -211,9 +211,9 @@ export default function Workspaces() {
         </div>
       </div>
 
-      <Card className="mt-5 p-5">
+      <Card className="mt-5 p-4 sm:p-5">
         <h2 className="font-semibold text-white">Telegram setup guide</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {["Create a bot with BotFather", "Create a private channel", "Add the bot as admin", "Paste bot token and channel ID"].map((step, index) => (
             <div key={step} className="rounded-md border border-border bg-panel-2 p-4">
               <p className="text-xs text-accent">Step {index + 1}</p>
@@ -225,11 +225,11 @@ export default function Workspaces() {
       </Card>
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-          <Card className="max-w-md p-5">
+        <div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4">
+          <Card className="w-full max-w-md rounded-b-none p-5 sm:rounded-b-lg">
             <h2 className="font-semibold text-white">Delete workspace?</h2>
             <p className="mt-2 text-sm leading-6 text-muted">This disables the workspace in TeleStore. Existing Telegram messages are not removed.</p>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
               <LoadingButton variant="ghost" disabled={deleteMutation.isPending} onClick={() => setDeleteTarget(null)}>Cancel</LoadingButton>
               <LoadingButton loading={deleteMutation.isPending} loadingText="Deleting..." onClick={() => deleteMutation.mutate(deleteTarget._id)}>Delete workspace</LoadingButton>
             </div>

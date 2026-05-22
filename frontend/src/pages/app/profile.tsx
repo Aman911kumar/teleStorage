@@ -53,9 +53,9 @@ export default function Profile() {
 
   return (
     <PageShell eyebrow="Account" title="Profile and security" description="Manage account identity, password security, and active sessions.">
-      <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
+      <div className="grid gap-4 xl:grid-cols-[1fr_minmax(0,420px)] xl:gap-5">
         <div className="space-y-5">
-          <Card className="p-5">
+          <Card className="p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-medium text-white"><UserRound size={17} className="text-accent" /> Profile</div>
             <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={profile.handleSubmit((values) => profileMutation.mutate(values))}>
               <label className="space-y-1.5">
@@ -66,11 +66,11 @@ export default function Profile() {
                 <span className="text-xs text-muted">Email</span>
                 <Input type="email" {...profile.register("email")} />
               </label>
-              <LoadingButton loading={profileMutation.isPending} loadingText="Saving..." className="md:col-span-2 w-fit">Save profile</LoadingButton>
+              <LoadingButton loading={profileMutation.isPending} loadingText="Saving..." className="w-full md:col-span-2 md:w-fit">Save profile</LoadingButton>
             </form>
           </Card>
 
-          <Card className="p-5">
+          <Card className="p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-medium text-white"><KeyRound size={17} className="text-accent" /> Password</div>
             <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={password.handleSubmit((values) => passwordMutation.mutate(values))}>
               <label className="space-y-1.5">
@@ -81,22 +81,22 @@ export default function Profile() {
                 <span className="text-xs text-muted">New password</span>
                 <Input type="password" {...password.register("nextPassword", { required: true })} />
               </label>
-              <LoadingButton loading={passwordMutation.isPending} loadingText="Updating..." variant="secondary" className="md:col-span-2 w-fit">Change password</LoadingButton>
+              <LoadingButton loading={passwordMutation.isPending} loadingText="Updating..." variant="secondary" className="w-full md:col-span-2 md:w-fit">Change password</LoadingButton>
             </form>
           </Card>
         </div>
 
-        <Card className="p-5">
+        <Card className="p-4 sm:p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-white"><ShieldCheck size={17} className="text-accent" /> Active sessions</div>
           <div className="mt-4 space-y-3">
             {(sessionsQuery.data ?? []).map((session) => (
               <div key={session.id} className="rounded-md border border-border bg-white/[0.025] p-3">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm text-white"><Monitor size={15} /> <span className="truncate">{session.userAgent}</span></div>
                     <p className="mt-1 text-xs text-muted">{session.ip} - Last used {new Date(session.lastUsedAt).toLocaleString()}</p>
                   </div>
-                  <Button variant="secondary" size="sm" disabled={session.revoked || revokeMutation.isPending} onClick={() => revokeMutation.mutate(session.id)}>
+                  <Button className="w-full sm:w-auto" variant="secondary" size="sm" disabled={session.revoked || revokeMutation.isPending} onClick={() => revokeMutation.mutate(session.id)}>
                     {session.revoked ? "Revoked" : "Revoke"}
                   </Button>
                 </div>

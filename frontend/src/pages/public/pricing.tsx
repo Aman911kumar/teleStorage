@@ -15,19 +15,19 @@ export default function Pricing() {
   return (
     <>
       <Seo title="Pricing - TeleStore" description="Simple pricing structure for a self-hosted Telegram media cloud." />
-      <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl overflow-x-hidden px-3 py-12 sm:px-6 sm:py-16 lg:px-8">
         <section className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-accent">Pricing</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-6xl">Start self-hosted. Scale when you need help.</h1>
+          <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">Start self-hosted. Scale when you need help.</h1>
           <div className="mt-8 inline-flex rounded-md border border-border bg-panel p-1">
-            <button className={`rounded px-4 py-2 text-sm ${!yearly ? "bg-panel-2 text-white" : "text-muted"}`} onClick={() => setYearly(false)}>Monthly</button>
-            <button className={`rounded px-4 py-2 text-sm ${yearly ? "bg-panel-2 text-white" : "text-muted"}`} onClick={() => setYearly(true)}>Yearly</button>
+            <button className={`min-h-11 rounded px-4 py-2 text-sm ${!yearly ? "bg-panel-2 text-white" : "text-muted"}`} onClick={() => setYearly(false)}>Monthly</button>
+            <button className={`min-h-11 rounded px-4 py-2 text-sm ${yearly ? "bg-panel-2 text-white" : "text-muted"}`} onClick={() => setYearly(true)}>Yearly</button>
           </div>
         </section>
 
         <section className="mt-12 grid gap-5 lg:grid-cols-3">
           {plans.map((plan, index) => (
-            <Card key={plan.name} className={`p-6 ${index === 1 ? "border-accent/60 bg-panel-2" : ""}`}>
+            <Card key={plan.name} className={`p-5 sm:p-6 ${index === 1 ? "border-accent/60 bg-panel-2" : ""}`}>
               <h2 className="text-xl font-semibold text-white">{plan.name}</h2>
               <p className="mt-2 min-h-12 text-sm leading-6 text-muted">{plan.text}</p>
               <p className="mt-6 text-4xl font-semibold text-white">${yearly ? Math.round(plan.monthly * 10) : plan.monthly}<span className="text-sm font-normal text-muted">/{yearly ? "yr" : "mo"}</span></p>
@@ -39,11 +39,11 @@ export default function Pricing() {
           ))}
         </section>
 
-        <section className="mt-12 overflow-hidden rounded-xl border border-border bg-panel">
+        <section className="thin-scrollbar mt-12 overflow-x-auto rounded-xl border border-border bg-panel">
           <table className="w-full min-w-180 text-left text-sm">
-            <thead className="bg-panel-2 text-muted"><tr><th className="p-4">Feature</th><th>Self-hosted</th><th>Pro Ops</th><th>Scale</th></tr></thead>
+            <thead className="bg-panel-2 text-muted"><tr><th className="p-4">Feature</th><th className="px-3">Self-hosted</th><th className="px-3">Pro Ops</th><th className="px-3">Scale</th></tr></thead>
             <tbody className="divide-y divide-border">
-              {["Workspace onboarding", "Encrypted token storage", "Upload optimization", "Deployment assistance"].map((row, index) => <tr key={row}><td className="p-4 text-white">{row}</td><td>{index < 3 ? "Included" : "Docs"}</td><td>Included</td><td>Included</td></tr>)}
+              {["Workspace onboarding", "Encrypted token storage", "Upload optimization", "Deployment assistance"].map((row, index) => <tr key={row}><td className="p-4 text-white">{row}</td><td className="px-3">{index < 3 ? "Included" : "Docs"}</td><td className="px-3">Included</td><td className="px-3">Included</td></tr>)}
             </tbody>
           </table>
         </section>

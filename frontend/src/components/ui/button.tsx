@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "focus-ring group inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-center text-sm font-medium leading-none tracking-[0.01em] transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:scale-100 disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:stroke-[1.9]",
+  "focus-ring group inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-center text-sm font-medium leading-none tracking-[0.01em] transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:scale-100 disabled:opacity-50 sm:min-h-10 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:stroke-[1.9]",
   {
     variants: {
       variant: {
@@ -19,8 +19,8 @@ const buttonVariants = cva(
           "bg-[linear-gradient(180deg,#ef5b66,#dc2626)] text-white shadow-[0_10px_26px_rgba(220,38,38,0.24),inset_0_1px_0_rgba(255,255,255,0.18)] hover:brightness-110"
       },
       size: {
-        icon: "h-9 w-9 px-0",
-        sm: "h-8 px-3 text-xs",
+        icon: "h-11 w-11 px-0 sm:h-9 sm:w-9",
+        sm: "h-10 px-3 text-xs sm:h-8",
         md: "h-10 px-4",
         lg: "h-12 px-5"
       }
