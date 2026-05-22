@@ -240,7 +240,7 @@ function copy(value: string) {
 function CodeBlock({ title, value, language = "bash" }: { title: string; value: string; language?: string }) {
   return (
     <Card className="overflow-hidden rounded-lg p-0">
-      <div className="flex items-center justify-between border-b border-border/70 bg-white/[0.025] px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border/70 bg-white/2.5 px-4 py-3">
         <div>
           <p className="text-sm font-semibold text-white">{title}</p>
           <p className="mt-1 text-xs text-muted">{language}</p>
@@ -293,7 +293,7 @@ export default function Docs() {
               TeleStore is a self-hosted storage API where each workspace connects its own Telegram bot and channel. Your apps upload to TeleStore, TeleStore stores files in Telegram, and browsers stream through secure backend proxy URLs.
             </p>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
-              {["Dashboard uploads", "External API uploads", "Secure media streaming"].map((item) => <div key={item} className="rounded-lg bg-white/[0.025] p-4 text-sm font-medium text-white"><CheckCircle2 className="mb-2 text-emerald-300" size={16} />{item}</div>)}
+              {["Dashboard uploads", "External API uploads", "Secure media streaming"].map((item) => <div key={item} className="rounded-lg bg-white/2.5 p-4 text-sm font-medium text-white"><CheckCircle2 className="mb-2 text-emerald-300" size={16} />{item}</div>)}
             </div>
           </section>
 
@@ -337,7 +337,7 @@ export default function Docs() {
           <section id="media" className="space-y-4">
             <h2 className="text-2xl font-semibold tracking-tight text-white">Media API</h2>
             <Card className="overflow-hidden rounded-lg">
-              <div className="grid grid-cols-[90px_1fr_2fr] border-b border-border bg-white/[0.025] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted"><span>Method</span><span>Endpoint</span><span>Description</span></div>
+              <div className="grid grid-cols-[90px_1fr_2fr] border-b border-border bg-white/2.5 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted"><span>Method</span><span>Endpoint</span><span>Description</span></div>
               {endpoints.map(([method, path, description]) => (
                 <div key={`${method}-${path}`} className="grid gap-2 border-b border-border/70 px-4 py-3 text-sm md:grid-cols-[90px_1fr_2fr]">
                   <span className="w-fit rounded bg-accent/12 px-2 py-1 text-xs font-semibold text-accent">{method}</span>
@@ -411,7 +411,7 @@ export default function Docs() {
               </div>
               <nav className="space-y-1">
                 {filteredSections.map((section) => (
-                  <a key={section.id} href={`#${section.id}`} className="group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-slate-400 transition hover:bg-white/[0.06] hover:text-white">
+                  <a key={section.id} href={`#${section.id}`} className="group flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-slate-400 transition hover:bg-white/6 hover:text-white">
                     <span className="h-4 w-1 rounded-full bg-transparent transition group-hover:bg-accent" />
                     <section.icon size={15} className="text-accent" />
                     <span className="truncate">{section.title}</span>

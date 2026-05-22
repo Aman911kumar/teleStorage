@@ -40,7 +40,7 @@ export default function Pricing() {
         </section>
 
         <section className="mt-12 overflow-hidden rounded-xl border border-border bg-panel">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-180 text-left text-sm">
             <thead className="bg-panel-2 text-muted"><tr><th className="p-4">Feature</th><th>Self-hosted</th><th>Pro Ops</th><th>Scale</th></tr></thead>
             <tbody className="divide-y divide-border">
               {["Workspace onboarding", "Encrypted token storage", "Upload optimization", "Deployment assistance"].map((row, index) => <tr key={row}><td className="p-4 text-white">{row}</td><td>{index < 3 ? "Included" : "Docs"}</td><td>Included</td><td>Included</td></tr>)}
