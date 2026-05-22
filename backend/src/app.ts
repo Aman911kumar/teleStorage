@@ -18,7 +18,11 @@ import { errorHandler } from "./middlewares/errorHandler.js";
 export function createApp() {
   const app = express();
   app.set("trust proxy", 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" }
+    })
+  );
   app.use("/api/v1", cors(apiCors));
   app.use("/media", cors(mediaCors));
   app.use("/preview", cors(mediaCors));
