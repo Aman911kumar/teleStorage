@@ -3,6 +3,18 @@ import toast from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { useAuthStore } from "@/store/auth-store";
 
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    skipAuthRefresh?: boolean;
+    _retry?: boolean;
+  }
+
+  export interface InternalAxiosRequestConfig {
+    skipAuthRefresh?: boolean;
+    _retry?: boolean;
+  }
+}
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:4000",
   withCredentials: true,
@@ -19,10 +31,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && original && !original._retry && !String(original.url).includes("/api/auth/")) {
+    if (error.response?.status === 401 && original && !original.skipAuthRefresh && !original._retry && !String(original.url).includes("/api/auth/")) {
       original._retry = true;
       try {
-        const { data } = await api.post("/api/auth/refresh");
+        const { data } = await refreshSession();
         useAuthStore.getState().setSession(data.data.token, data.data.user);
         original.headers.Authorization = `Bearer ${data.data.token}`;
         return api(original);
@@ -63,6 +75,10 @@ export function notifyWarning(message: string) {
 
 export type AuthUser = { id: string; name: string; email: string; role: "user" | "admin"; emailVerified: boolean; avatarUrl?: string };
 export type AuthSession = { token: string; accessToken: string; user: AuthUser; verificationToken?: string };
+
+export function refreshSession() {
+  return api.post("/api/auth/refresh", undefined, { skipAuthRefresh: true });
+}
 
 export async function login(email: string, password: string, remember = true) {
   const { data } = await api.post("/api/auth/login", { email, password, remember });

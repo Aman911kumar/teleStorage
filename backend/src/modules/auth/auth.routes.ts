@@ -38,7 +38,7 @@ function refreshCookieOptions() {
   return {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    sameSite: (env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
     path: "/api/auth",
     maxAge: 30 * 24 * 60 * 60 * 1000
   };
@@ -62,7 +62,7 @@ function oauthStateCookieOptions() {
   return {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    sameSite: (env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
     path: "/api/auth/google",
     maxAge: 10 * 60 * 1000
   };
@@ -72,7 +72,7 @@ function oauthReturnCookieOptions() {
   return {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    sameSite: (env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
     path: "/api/auth/google",
     maxAge: 10 * 60 * 1000
   };

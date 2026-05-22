@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
-import { api } from "@/lib/api";
+import { refreshSession } from "@/lib/api";
 import { PageLoading } from "@/components/page-loading";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -15,7 +15,7 @@ export function ProtectedRoute() {
     if (token || refreshAttempted) {
       return;
     }
-    api.post("/api/auth/refresh")
+    refreshSession()
       .then(({ data }) => {
         if (active) setSession(data.data.token, data.data.user);
       })
@@ -43,7 +43,7 @@ export function AuthRoute() {
     let active = true;
     if (token || refreshAttempted) return;
 
-    api.post("/api/auth/refresh")
+    refreshSession()
       .then(({ data }) => {
         if (active) setSession(data.data.token, data.data.user);
       })

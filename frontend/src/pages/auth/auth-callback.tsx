@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { api, notifyError } from "@/lib/api";
+import { notifyError, refreshSession } from "@/lib/api";
 import { useAuthStore } from "@/store/auth-store";
 import { AuthCard } from "./auth-card";
 
@@ -11,7 +11,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let active = true;
-    api.post("/api/auth/refresh")
+    refreshSession()
       .then(({ data }) => {
         if (!active) return;
         setSession(data.data.token, data.data.user);
