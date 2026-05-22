@@ -73,7 +73,10 @@ export class MediaController {
   };
 
   uploadAny = async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.file || !req.user) throw new AppError("File is required", 400, "FILE_REQUIRED");
+    if (!req.file) throw new AppError("File is required", 400, "FILE_REQUIRED");
+    const ownerId = req.apiWorkspace?.ownerId ?? req.user?.id;
+    const workspaceId = req.apiWorkspace?.id ?? req.body.workspaceId;
+    if (!ownerId) throw new AppError("Valid dashboard session or API credentials are required", 403, "UPLOAD_AUTH_REQUIRED");
     const kind = req.file.mimetype.startsWith("image/")
       ? "image"
       : req.file.mimetype.startsWith("video/")
@@ -83,7 +86,7 @@ export class MediaController {
           : "document";
     res.status(kind === "video" ? 202 : 201).json({
       success: true,
-      data: await mediaService.upload(req.file, req.user.id, kind, req.body.workspaceId, () => req.aborted || res.destroyed, uploadOptions(req))
+      data: await mediaService.upload(req.file, ownerId, kind, workspaceId, () => req.aborted || res.destroyed, uploadOptions(req))
     });
   };
 

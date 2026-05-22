@@ -84,10 +84,10 @@ export class ApiKeyService {
   async authenticate(publicKey: string, secret: string, ip?: string) {
     const key = await ApiKeyModel.findOne({ publicKey, status: "active" }).lean();
     if (!key || !timingSafeCompare(secret, key.secretHash)) {
-      throw new AppError("Invalid API credentials", 403, "INVALID_API_CREDENTIALS");
+      throw new AppError("Invalid API key or secret.", 403, "INVALID_API_CREDENTIALS");
     }
     const workspace = await WorkspaceModel.findOne({ _id: key.workspaceId, isActive: true }).lean();
-    if (!workspace) throw new AppError("Workspace is disabled", 403, "WORKSPACE_DISABLED");
+    if (!workspace) throw new AppError("Workspace is disabled.", 403, "WORKSPACE_DISABLED");
     await ApiKeyModel.updateOne({ _id: key._id }, { lastUsedAt: new Date(), lastUsedIp: ip }).catch(() => undefined);
     return { key, workspace };
   }

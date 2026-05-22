@@ -2,7 +2,7 @@ import compression from "compression";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
-import { corsOptions } from "./config/cors.js";
+import { apiCors, dashboardCors, mediaCors } from "./config/cors.js";
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { apiKeyRouter } from "./modules/api-keys/api-key.routes.js";
 import { apiV1Router } from "./modules/api-v1/api-v1.routes.js";
@@ -19,8 +19,27 @@ export function createApp() {
   const app = express();
   app.set("trust proxy", 1);
   app.use(helmet());
-  app.use(cors(corsOptions));
-  app.options("*", cors(corsOptions));
+  app.use("/api/v1", cors(apiCors));
+  app.use("/media", cors(mediaCors));
+  app.use("/preview", cors(mediaCors));
+  app.use("/stream", cors(mediaCors));
+  app.use(
+    [
+      "/api/auth",
+      "/auth",
+      "/api/api-keys",
+      "/api/api-request-logs",
+      "/api/workspaces",
+      "/api/folders",
+      "/api/media",
+      "/api/upload",
+      "/api/analytics",
+      "/api/users",
+      "/admin",
+      "/upload"
+    ],
+    cors(dashboardCors)
+  );
   app.use(compression());
   app.use(express.json({ limit: "1mb" }));
   app.use(apiRateLimit);

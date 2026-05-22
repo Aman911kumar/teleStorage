@@ -32,6 +32,7 @@ import {
   type ApiKey,
   type Workspace
 } from "@/lib/api";
+import { getApiBaseUrl } from "@/lib/url";
 
 const scopes = ["upload", "read", "write", "delete", "admin", "full"];
 const emptyWorkspaces: Workspace[] = [];
@@ -46,11 +47,11 @@ function mask(value?: string) {
   return value.length > 16 ? `${value.slice(0, 12)}...${value.slice(-6)}` : value;
 }
 
-function buildExamples(key?: ApiKey, secret?: string) {
+function buildExamples(baseUrl: string, key?: ApiKey, secret?: string) {
   const apiKey = key?.publicKey ?? "your_api_key_here";
   const apiSecret = secret ?? "example_secret";
   return {
-    curl: `curl -X POST https://your-domain.com/api/v1/upload \\
+    curl: `curl -X POST ${baseUrl}/api/v1/upload \\
   -H "x-api-key: ${apiKey}" \\
   -H "x-api-secret: ${apiSecret}" \\
   -F "file=@avatar.png" \\
@@ -61,7 +62,7 @@ form.append("file", file);
 form.append("folderId", "optional_folder_id");
 form.append("metadata", JSON.stringify({ source: "web" }));
 
-const response = await fetch("https://your-domain.com/api/v1/upload", {
+const response = await fetch("${baseUrl}/api/v1/upload", {
   method: "POST",
   headers: {
     "x-api-key": "${apiKey}",
@@ -71,7 +72,7 @@ const response = await fetch("https://your-domain.com/api/v1/upload", {
 });
 
 const result = await response.json();`,
-    folders: `await fetch("https://your-domain.com/api/v1/folders", {
+    folders: `await fetch("${baseUrl}/api/v1/folders", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -237,7 +238,8 @@ export default function ApiAccess() {
   });
 
   const primaryKey = keysQuery.data?.find((apiKey) => apiKey.status === "active") ?? keysQuery.data?.[0];
-  const examples = buildExamples(primaryKey, primaryKey ? freshSecrets[primaryKey._id] : undefined);
+  const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
+  const examples = buildExamples(apiBaseUrl, primaryKey, primaryKey ? freshSecrets[primaryKey._id] : undefined);
 
   function toggleScope(scope: string) {
     setSelectedScopes((current) => {

@@ -1,7 +1,7 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { requirePublicApiKey, requireWorkspaceUploadToken } from "../../middlewares/apiAccess.middleware.js";
+import { requireApiAuth, requireApiUploadAuth, requirePublicApiKey } from "../../middlewares/api-auth.middleware.js";
 import { upload } from "../../middlewares/upload.middleware.js";
 import { publicApiRateLimit, uploadRateLimit } from "../../middlewares/rateLimit.js";
 import { apiRequestLogger } from "../../middlewares/apiRequestLog.middleware.js";
@@ -71,6 +71,49 @@ function requireApiScope(req: AuthenticatedRequest, scope: "upload" | "read" | "
 }
 
 export const apiV1Router = Router();
+const uploadFields = upload.fields([
+  { name: "file", maxCount: 1 },
+  { name: "files", maxCount: 10 }
+]);
+
+async function handleApiUpload(req: AuthenticatedRequest, res: Response) {
+  requireApiScope(req, "upload");
+  const files = filesFromRequest(req);
+  if (!files.length) throw new AppError("File is required", 400, "FILE_REQUIRED");
+
+  const tags = parseJsonField<string[]>(req.body.tags, []);
+  const metadata = parseJsonField<Record<string, string>>(req.body.metadata, {});
+  const visibility = req.body.visibility === "public" ? "public" : "private";
+  const folderId = typeof req.body.folderId === "string" ? req.body.folderId : undefined;
+  const customFilename = typeof req.body.filename === "string" ? req.body.filename : undefined;
+  const workspace = req.apiWorkspace!;
+
+  const uploaded = [];
+  for (const file of files) {
+    uploaded.push(
+      await mediaService.upload(file, workspace.ownerId, kindFromMime(file.mimetype), workspace.id, () => req.aborted || res.destroyed, {
+        folderId,
+        tags,
+        metadata,
+        visibility
+      })
+    );
+    if (customFilename) {
+      await mediaService.rename(uploaded[uploaded.length - 1].id, workspace.ownerId, customFilename);
+    }
+  }
+
+  res.status(201).json({
+    success: true,
+    data: {
+      files: uploaded.map((item) => ({
+        ...item,
+        publicUrl: `/media/${item.id}/view`,
+        apiUrl: `/api/v1/media/${item.id}`
+      }))
+    }
+  });
+}
 
 apiV1Router.use("/api/v1", apiRequestLogger);
 apiV1Router.use("/api/v1", publicApiRateLimit);
@@ -98,57 +141,25 @@ apiV1Router.post(
   })
 );
 
-apiV1Router.use("/api/v1", requireWorkspaceUploadToken);
-
 apiV1Router.post(
   "/api/v1/upload",
+  requireApiAuth,
   uploadRateLimit,
-  upload.fields([
-    { name: "file", maxCount: 1 },
-    { name: "files", maxCount: 10 }
-  ]),
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
-    requireApiScope(req, "upload");
-    const files = filesFromRequest(req);
-    if (!files.length) throw new AppError("File is required", 400, "FILE_REQUIRED");
+  uploadFields,
+  asyncHandler(handleApiUpload)
+);
 
-    const tags = parseJsonField<string[]>(req.body.tags, []);
-    const metadata = parseJsonField<Record<string, string>>(req.body.metadata, {});
-    const visibility = req.body.visibility === "public" ? "public" : "private";
-    const folderId = typeof req.body.folderId === "string" ? req.body.folderId : undefined;
-    const customFilename = typeof req.body.filename === "string" ? req.body.filename : undefined;
-    const workspace = req.apiWorkspace!;
-
-    const uploaded = [];
-    for (const file of files) {
-      uploaded.push(
-        await mediaService.upload(file, workspace.ownerId, kindFromMime(file.mimetype), workspace.id, () => req.aborted || res.destroyed, {
-          folderId,
-          tags,
-          metadata,
-          visibility
-        })
-      );
-      if (customFilename) {
-        await mediaService.rename(uploaded[uploaded.length - 1].id, workspace.ownerId, customFilename);
-      }
-    }
-
-    res.status(201).json({
-      success: true,
-      data: {
-        files: uploaded.map((item) => ({
-          ...item,
-          publicUrl: `/media/${item.id}/view`,
-          apiUrl: `/api/v1/media/${item.id}`
-        }))
-      }
-    });
-  })
+apiV1Router.post(
+  "/api/v1/browser-upload",
+  requireApiUploadAuth,
+  uploadRateLimit,
+  uploadFields,
+  asyncHandler(handleApiUpload)
 );
 
 apiV1Router.patch(
   "/api/v1/media/:id",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "write");
     await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
@@ -162,6 +173,7 @@ apiV1Router.patch(
 
 apiV1Router.get(
   "/api/v1/media/:id",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "read");
     const media = await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
@@ -188,6 +200,7 @@ apiV1Router.get(
 
 apiV1Router.head(
   "/api/v1/media/:id",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "read");
     const media = await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
@@ -202,6 +215,7 @@ apiV1Router.head(
 
 apiV1Router.post(
   "/api/v1/media/:id/links",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "read");
     const media = await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
@@ -212,6 +226,7 @@ apiV1Router.post(
 
 apiV1Router.delete(
   "/api/v1/media/:id",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "delete");
     await mediaService.findForWorkspace(req.params.id, req.apiWorkspace!.id);
@@ -222,6 +237,7 @@ apiV1Router.delete(
 
 apiV1Router.get(
   "/api/v1/files",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "read");
     const files = await mediaService.listForWorkspace(req.apiWorkspace!.id, {
@@ -234,6 +250,7 @@ apiV1Router.get(
 
 apiV1Router.get(
   "/api/v1/search",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "read");
     const query = String(req.query.q ?? "").toLowerCase();
@@ -245,6 +262,7 @@ apiV1Router.get(
 
 apiV1Router.post(
   "/api/v1/folders",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "write");
     const body = folderSchema.parse(req.body);
@@ -255,6 +273,7 @@ apiV1Router.post(
 
 apiV1Router.get(
   "/api/v1/folders",
+  requireApiAuth,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     requireApiScope(req, "read");
     const folders = await folderService.list(req.apiWorkspace!.id, req.query.parentId as string | undefined);

@@ -24,6 +24,7 @@ import { PageShell } from "@/components/page-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getApiBaseUrl } from "@/lib/url";
 
 type Section = {
   id: string;
@@ -266,6 +267,17 @@ function StepCard({ index, title, text }: { index: number; title: string; text: 
 export default function Docs() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"javascript" | "react" | "node" | "next" | "express" | "python" | "flutter">("javascript");
+  const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
+  const dynamicSnippets = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(snippets).map(([key, value]) => [
+          key,
+          value.replaceAll("https://your-domain.com", apiBaseUrl).replaceAll("http://localhost:4000", apiBaseUrl)
+        ])
+      ) as typeof snippets,
+    [apiBaseUrl]
+  );
   const filteredSections = useMemo(() => {
     const value = query.trim().toLowerCase();
     if (!value) return sections;
@@ -273,13 +285,13 @@ export default function Docs() {
   }, [query]);
 
   const sdkSnippets = {
-    javascript: snippets.javascript,
-    react: snippets.react,
-    node: snippets.node,
-    next: snippets.next,
-    express: snippets.express,
-    python: snippets.python,
-    flutter: snippets.flutter
+    javascript: dynamicSnippets.javascript,
+    react: dynamicSnippets.react,
+    node: dynamicSnippets.node,
+    next: dynamicSnippets.next,
+    express: dynamicSnippets.express,
+    python: dynamicSnippets.python,
+    flutter: dynamicSnippets.flutter
   };
 
   return (
@@ -314,23 +326,23 @@ export default function Docs() {
               <Card className="rounded-lg p-5"><LockKeyhole className="text-accent" size={21} /><h3 className="mt-3 text-base font-semibold text-white">Secret key</h3><p className="mt-2 text-sm leading-6 text-slate-400">Shown once. Store it only on servers or secure environments.</p></Card>
               <Card className="rounded-lg p-5"><ShieldCheck className="text-accent" size={21} /><h3 className="mt-3 text-base font-semibold text-white">Scopes</h3><p className="mt-2 text-sm leading-6 text-slate-400">Limit each key to upload, read, write, delete, or full access.</p></Card>
             </div>
-            <CodeBlock title="Header authentication" value={snippets.authHeaders} />
-            <CodeBlock title="Bearer authentication" value={snippets.bearer} language="http" />
+            <CodeBlock title="Header authentication" value={dynamicSnippets.authHeaders} />
+            <CodeBlock title="Bearer authentication" value={dynamicSnippets.bearer} language="http" />
           </section>
 
           <section id="upload" className="space-y-4">
             <h2 className="text-2xl font-semibold tracking-tight text-white">Upload API</h2>
             <p className="max-w-5xl text-sm leading-7 text-slate-400">Use `POST /api/v1/upload` with multipart form data. Supported options include `file`, `files`, `folderId`, `visibility`, `tags`, `metadata`, and custom filename fields.</p>
-            <CodeBlock title="Upload with cURL" value={snippets.curlUpload} />
-            <CodeBlock title="Multiple file upload" value={snippets.multiUpload} />
-            <CodeBlock title="Success response" value={snippets.responseSuccess} language="json" />
+            <CodeBlock title="Upload with cURL" value={dynamicSnippets.curlUpload} />
+            <CodeBlock title="Multiple file upload" value={dynamicSnippets.multiUpload} />
+            <CodeBlock title="Success response" value={dynamicSnippets.responseSuccess} language="json" />
           </section>
 
           <section id="folders" className="space-y-4">
             <h2 className="text-2xl font-semibold tracking-tight text-white">Folder API</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <CodeBlock title="Create nested folder" value={snippets.createFolder} />
-              <CodeBlock title="Move file to folder" value={snippets.moveFile} />
+              <CodeBlock title="Create nested folder" value={dynamicSnippets.createFolder} />
+              <CodeBlock title="Move file to folder" value={dynamicSnippets.moveFile} />
             </div>
           </section>
 
@@ -368,7 +380,7 @@ export default function Docs() {
 
           <section id="errors" className="space-y-4">
             <h2 className="text-2xl font-semibold tracking-tight text-white">Error Handling</h2>
-            <CodeBlock title="Error response" value={snippets.responseError} language="json" />
+            <CodeBlock title="Error response" value={dynamicSnippets.responseError} language="json" />
             <Card className="overflow-hidden rounded-lg">
               {errors.map(([status, code, guidance]) => (
                 <div key={code} className="grid gap-2 border-b border-border/70 px-4 py-3 text-sm md:grid-cols-[80px_1fr_2fr]">
@@ -386,7 +398,7 @@ export default function Docs() {
           <section id="webhooks" className="space-y-4">
             <h2 className="text-2xl font-semibold tracking-tight text-white">Webhooks</h2>
             <p className="text-sm leading-7 text-slate-400">Webhook models are prepared for `upload.completed`, `upload.failed`, and `media.deleted` events.</p>
-            <CodeBlock title="Webhook payload" value={snippets.webhook} language="json" />
+            <CodeBlock title="Webhook payload" value={dynamicSnippets.webhook} language="json" />
           </section>
 
           <section id="production" className="space-y-4">
@@ -426,7 +438,7 @@ export default function Docs() {
               <div className="mt-4 space-y-3">
                 <div className="rounded-lg bg-[#090c13] p-3 text-xs text-muted">Endpoint<br /><code className="mt-1 block text-white">POST /api/v1/upload</code></div>
                 <div className="rounded-lg bg-[#090c13] p-3 text-xs text-muted">Auth<br /><code className="mt-1 block text-white">x-api-key + x-api-secret</code></div>
-                <Button className="h-10 w-full" onClick={() => copy(snippets.playgroundCurl)}><Send size={15} /> Copy request</Button>
+                <Button className="h-10 w-full" onClick={() => copy(dynamicSnippets.playgroundCurl)}><Send size={15} /> Copy request</Button>
               </div>
             </Card>
           </div>

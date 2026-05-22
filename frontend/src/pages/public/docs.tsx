@@ -3,19 +3,21 @@ import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/seo";
+import { withApiBase } from "@/lib/url";
 
 const nav = ["Overview", "Create bot", "Connect channel", "API upload", "Folders", "Stream files"];
-const code = `curl -X POST http://localhost:4000/api/v1/upload \\
+
+export default function PublicDocs() {
+  const code = `curl -X POST ${withApiBase("/api/v1/upload")} \\
   -H "x-api-key: your_api_key_here" \\
   -H "x-api-secret: example_secret" \\
   -F "file=@image.png"`;
-const folderCode = `curl -X POST http://localhost:4000/api/v1/folders \\
+  const folderCode = `curl -X POST ${withApiBase("/api/v1/folders")} \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: your_api_key_here" \\
   -H "x-api-secret: example_secret" \\
   -d '{"name":"avatars"}'`;
 
-export default function PublicDocs() {
   return (
     <>
       <Seo title="Docs - TeleStore" description="Developer documentation for Telegram workspace setup and media uploads." />

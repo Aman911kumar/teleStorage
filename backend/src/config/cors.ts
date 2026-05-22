@@ -1,6 +1,5 @@
-import type { CorsOptions, CorsOptionsDelegate } from "cors";
+import type { CorsOptions } from "cors";
 import { env } from "./env.js";
-import { AppError } from "../core/errors.js";
 
 export const allowedOrigins = [
   ...new Set([
@@ -11,12 +10,18 @@ export const allowedOrigins = [
   ].filter(Boolean))
 ];
 
-function isPublicIntegrationPath(path = "") {
-  return path.startsWith("/api/v1") || path.startsWith("/media/");
+function isLocalDevOrigin(origin: string) {
+  if (env.NODE_ENV === "production") return false;
+
+  try {
+    const url = new URL(origin);
+    return ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
-const baseOptions: Omit<CorsOptions, "origin"> = {
-  credentials: true,
+const sharedOptions: Omit<CorsOptions, "origin" | "credentials"> = {
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type",
@@ -32,19 +37,26 @@ const baseOptions: Omit<CorsOptions, "origin"> = {
   maxAge: 86400
 };
 
-export const corsOptions: CorsOptionsDelegate = (req, callback) => {
-  const origin = req.headers.origin;
-  const path = "path" in req ? String(req.path) : "";
-
-  if (!origin) return callback(null, { ...baseOptions, origin: true });
-
-  if (isPublicIntegrationPath(path)) {
-    return callback(null, { ...baseOptions, origin });
+export const dashboardCors: CorsOptions = {
+  ...sharedOptions,
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (!allowedOrigins.length || allowedOrigins.includes(origin) || isLocalDevOrigin(origin)) {
+      return callback(null, origin);
+    }
+    return callback(null, false);
   }
+};
 
-  if (!allowedOrigins.length || allowedOrigins.includes(origin)) {
-    return callback(null, { ...baseOptions, origin });
-  }
+export const apiCors: CorsOptions = {
+  ...sharedOptions,
+  credentials: false,
+  origin: true
+};
 
-  return callback(new AppError(`CORS blocked origin: ${origin}`, 403, "CORS_ORIGIN_BLOCKED"));
+export const mediaCors: CorsOptions = {
+  ...sharedOptions,
+  credentials: false,
+  origin: "*"
 };

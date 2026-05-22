@@ -6,6 +6,8 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const normalizedError =
     (error as NodeJS.ErrnoException).code === "ENOENT"
       ? new AppError("Upload temp file was not available. Please retry the upload.", 400, "UPLOAD_TEMP_FILE_MISSING")
+      : error instanceof Error && error.message === "Unexpected end of form"
+        ? new AppError("Upload request ended before the file was fully sent. Check multipart/form-data and retry.", 400, "UPLOAD_FORM_INCOMPLETE")
       : error;
   const statusCode = normalizedError instanceof AppError ? normalizedError.statusCode : 500;
   const code = normalizedError instanceof AppError ? normalizedError.code : "INTERNAL_ERROR";

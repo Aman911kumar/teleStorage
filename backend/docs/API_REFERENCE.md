@@ -5,8 +5,14 @@ TeleStore is now a self-hosted Telegram media cloud. Users connect their own Tel
 Base URL:
 
 ```txt
-http://localhost:4000
+<API_BASE_URL>
 ```
+
+Use your deployed backend origin for `<API_BASE_URL>`.
+Examples:
+
+- Local backend: `http://localhost:4000`
+- Production backend: `https://storageapi.example.com`
 
 ## Authentication
 
@@ -379,7 +385,7 @@ Form fields:
 Example:
 
 ```bash
-curl -X POST http://localhost:4000/api/upload \
+curl -X POST <API_BASE_URL>/api/upload \
   -H "Authorization: Bearer <jwt>" \
   -F "workspaceId=665f0f000000000000000001" \
   -F "file=@image.png"
@@ -489,7 +495,7 @@ Form fields:
 Example:
 
 ```bash
-curl -X POST http://localhost:4000/api/v1/upload \
+curl -X POST <API_BASE_URL>/api/v1/upload \
   -H "x-api-key: your_api_key_here" \
   -H "x-api-secret: example_secret" \
   -F "file=@image.png" \
