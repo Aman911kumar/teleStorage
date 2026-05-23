@@ -26,15 +26,15 @@ export function PublicLayout() {
             <span className="grid h-8 w-8 place-items-center rounded-md bg-[linear-gradient(180deg,#7b96ff,#526fff)] shadow-[0_10px_26px_rgba(82,111,255,0.24)]"><HardDrive size={17} /></span>
             TeleStorage
           </Link>
-          <div className="hidden items-center gap-1 rounded-full border border-border bg-white/[0.025] p-1 text-sm text-muted md:flex">
+          <div className="hidden items-center gap-1 rounded-full border border-border bg-white/2.5 p-1 text-sm text-muted md:flex">
             {links.map((link) => (
-              <Link key={link.to} to={link.to} className="rounded-full px-3 py-1.5 hover:bg-white/[0.055] hover:text-white">{link.label}</Link>
+              <Link key={link.to} to={link.to} className="rounded-full px-3 py-1.5 hover:bg-white/5.5 hover:text-white">{link.label}</Link>
             ))}
           </div>
           <div className="flex items-center gap-2">
             {isLoggedIn ? (
               <div className="hidden h-10 items-center overflow-hidden rounded-md border border-border bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:flex">
-                <Link to="/app" className="flex h-full items-center gap-2 px-3 text-sm font-medium text-white transition hover:bg-white/[0.055]">
+                <Link to="/app" className="flex h-full items-center gap-2 px-3 text-sm font-medium text-white transition hover:bg-white/5.5">
                   <span className="grid h-6 w-6 place-items-center rounded bg-accent/15 text-xs text-accent">{(user?.name ?? "U").slice(0, 1).toUpperCase()}</span>
                   <span className="max-w-36 truncate">{user?.name ?? "Dashboard"}</span>
                 </Link>

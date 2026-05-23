@@ -731,7 +731,7 @@ export default function Media() {
             </div>
           </Card>
 
-          <Card className="sticky top-[8.75rem] z-10 mb-5 p-2 backdrop-blur-xl sm:top-22 sm:mb-6 sm:p-3">
+          <Card className="sticky top-35 z-10 mb-5 p-2 backdrop-blur-xl sm:top-22 sm:mb-6 sm:p-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
                 <Button variant={view === "grid" ? "primary" : "secondary"} size="sm" onClick={() => setView("grid")}><Grid2X2 size={15} /></Button>
@@ -1113,7 +1113,7 @@ function DetailsPanel({ item, onClose, onCopy }: { item: MediaItem | null; onClo
         <div className="mt-6 aspect-video overflow-hidden rounded-lg border border-border bg-[#090c13] text-accent">{item.mimeType.startsWith("image/") ? <MediaImage id={item._id} alt={item.originalName} /> : <div className="grid h-full place-items-center"><MediaTypeIcon item={item} size={34} /></div>}</div>
         <div className="mt-5 space-y-3 text-sm">
           {[["Name", item.originalName], ["Size", formatBytes(item.size)], ["Type", item.mimeType], ["Status", item.status], ["Uploaded", new Date(item.createdAt).toLocaleString()], ["Telegram", "Stored"]].map(([label, value]) => (
-            <div key={label} className="grid gap-1 border-b border-border pb-2 sm:flex sm:justify-between sm:gap-4"><span className="text-muted">{label}</span><span className="break-words text-white sm:truncate">{value}</span></div>
+            <div key={label} className="grid gap-1 border-b border-border pb-2 sm:flex sm:justify-between sm:gap-4"><span className="text-muted">{label}</span><span className="wrap-break-word text-white sm:truncate">{value}</span></div>
           ))}
         </div>
         <Button className="mt-5 w-full" onClick={() => onCopy(item)}><Copy size={15} /> Copy URL</Button>

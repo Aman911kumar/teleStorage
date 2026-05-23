@@ -34,7 +34,7 @@ export default function Landing() {
           <Card className="min-w-0 p-3 sm:p-4">
             <div className="min-w-0 rounded-lg bg-[#090c13] p-3 sm:p-4">
               <div className="mb-4 flex items-center gap-2 text-sm text-muted"><UploadCloud size={16} /> Workspace setup</div>
-              <pre className="thin-scrollbar overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-black/30 p-3 text-xs leading-6 text-slate-300 sm:p-4 sm:text-sm"><code>{snippet}</code></pre>
+              <pre className="thin-scrollbar overflow-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border bg-black/30 p-3 text-xs leading-6 text-slate-300 sm:p-4 sm:text-sm"><code>{snippet}</code></pre>
               <div className="mt-4 grid gap-3 text-center text-sm sm:grid-cols-3"><div className="rounded bg-panel-2 p-3"><p className="text-white">Images</p><p className="text-muted">WebP</p></div><div className="rounded bg-panel-2 p-3"><p className="text-white">Videos</p><p className="text-muted">Stream</p></div><div className="rounded bg-panel-2 p-3"><p className="text-white">Files</p><p className="text-muted">Private</p></div></div>
             </div>
           </Card>

@@ -76,7 +76,7 @@ function CodeBlock({ title, value, language = "bash" }: { title: string; value: 
         </div>
         <Button variant="secondary" size="sm" onClick={() => copy(value)}><Copy size={14} /> Copy</Button>
       </div>
-      <pre className="thin-scrollbar overflow-auto whitespace-pre-wrap break-words bg-[#070a10] p-4 text-xs leading-6 text-slate-300 sm:text-sm"><code>{value}</code></pre>
+      <pre className="thin-scrollbar overflow-auto whitespace-pre-wrap wrap-break-word bg-[#070a10] p-4 text-xs leading-6 text-slate-300 sm:text-sm"><code>{value}</code></pre>
     </Card>
   );
 }
@@ -151,7 +151,7 @@ const result = await response.json();`,
   return (
     <>
       <Seo title="Docs - TeleStorage" description="Complete developer documentation for Telegram-backed media uploads, folders, streaming, and API integration." />
-      <main className="mx-auto grid max-w-[1500px] gap-6 px-3 py-8 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
+      <main className="mx-auto grid max-w-375 gap-6 px-3 py-8 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-3">
             <Card className="p-3">

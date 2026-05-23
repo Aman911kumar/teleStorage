@@ -148,7 +148,7 @@ export function DashboardLayout() {
               className={({ isActive }) =>
                 cn(
                   "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium text-muted transition",
-                  isActive && "bg-white/[0.075] text-white"
+                  isActive && "bg-white/7.5 text-white"
                 )
               }
             >
