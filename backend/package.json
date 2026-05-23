@@ -1,5 +1,5 @@
 {
-  "name": "telestore-media-platform",
+  "name": "telestorage-media-platform",
   "version": "1.0.0",
   "description": "Developer-first media storage and CDN platform backed by Telegram storage.",
   "main": "dist/server.js",

@@ -86,7 +86,7 @@ export class MediaRepository {
     return MediaModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
-      .select("originalName filename mimeType size visibility status createdAt thumbnail tags folderId customMetadata mediaType metadata");
+      .select("originalName filename mimeType size visibility status createdAt thumbnail tags folderId folderPath customMetadata mediaType metadata");
   }
 
   listForWorkspaceOwner(workspaceId: string, uploadedBy: string) {
@@ -99,6 +99,6 @@ export class MediaRepository {
     return MediaModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(Math.min(options.limit ?? 100, 250))
-      .select("originalName filename mimeType size visibility status createdAt tags folderId customMetadata");
+      .select("originalName filename mimeType size visibility status createdAt tags folderId folderPath customMetadata");
   }
 }

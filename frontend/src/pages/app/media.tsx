@@ -2,7 +2,7 @@ import axios from "axios";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
   ChevronLeft,
@@ -153,6 +153,7 @@ export default function Media() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const uploadRequestId = useUiStore((state) => state.uploadRequestId);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +162,6 @@ export default function Media() {
   const queueRef = useRef<UploadItem[]>([]);
   const ensuredFolders = useRef(new Map<string, string>());
   const [workspaceId, setWorkspaceId] = useState("");
-  const [activeFolder, setActiveFolder] = useState<FolderItem | null>(null);
   const [filter, setFilter] = useState<ExplorerFilter>("all");
   const [view, setView] = useState<ViewMode>("grid");
   const [query, setQuery] = useState("");
@@ -232,11 +232,10 @@ export default function Media() {
 
   const renameFolderMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => renameFolder(id, { workspaceId: resolvedWorkspaceId, name }),
-    onSuccess: async (folder) => {
+    onSuccess: async () => {
       toast.success("Folder renamed");
       setRenameFolderTarget(null);
       setRenameFolderName("");
-      setActiveFolder((current) => current?._id === folder._id ? folder : current);
       await queryClient.invalidateQueries({ queryKey: ["folders", resolvedWorkspaceId] });
     },
     onError: (error) => notifyError(error, "Unable to rename folder.")
@@ -246,7 +245,11 @@ export default function Media() {
     mutationFn: ({ id }: { id: string }) => deleteFolder(id, resolvedWorkspaceId),
     onSuccess: async (_result, variables) => {
       toast.success("Folder deleted");
-      if (activeFolder?._id === variables.id) setActiveFolder(null);
+      if (activeFolder?._id === variables.id) {
+        const next = new URLSearchParams(searchParams);
+        next.delete("folder");
+        setSearchParams(next, { replace: true });
+      }
       setDeleteFolderTarget(null);
       await queryClient.invalidateQueries({ queryKey: ["folders", resolvedWorkspaceId] });
     },
@@ -348,9 +351,19 @@ export default function Media() {
     onError: (error) => notifyError(error, "Unable to sync Telegram files.")
   });
 
-  const allFolders = foldersQuery.data ?? [];
+  const allFolders = useMemo(() => foldersQuery.data ?? [], [foldersQuery.data]);
+  const folderIdFromUrl = searchParams.get("folder");
+  const activeFolder = folderIdFromUrl ? allFolders.find((item) => item._id === folderIdFromUrl) ?? null : null;
+  const activeFolderPath = activeFolder?.path;
   const media = useMemo(() => mediaQuery.data ?? [], [mediaQuery.data]);
-  const currentFolderId = activeFolder?._id;
+  const currentFolderId = folderIdFromUrl ?? undefined;
+
+  const openFolder = useCallback((folder: FolderItem | null, replace = false) => {
+    const next = new URLSearchParams(searchParams);
+    if (folder) next.set("folder", folder._id);
+    else next.delete("folder");
+    setSearchParams(next, { replace });
+  }, [searchParams, setSearchParams]);
   const currentFiles = useMemo(() => {
     return media
       .filter((item) => {
@@ -486,6 +499,11 @@ export default function Media() {
         }
       }
 
+      const folderPath = item.folderPath
+        ? item.folderPath.split("/").filter(Boolean)
+        : activeFolderPath
+          ? activeFolderPath.split("/").filter(Boolean)
+          : [];
       const result = await uploadMedia(item.file, resolvedWorkspaceId, (progress, loaded = 0, total = item.file.size) => {
         if (!controller.signal.aborted) {
           const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.2);
@@ -494,7 +512,7 @@ export default function Media() {
           const etaSeconds = speed > 0 ? Math.ceil(remainingBytes / speed) : undefined;
           setQueue((current) => current.map((q) => q.id === item.id ? { ...q, progress, uploadedBytes: loaded, speed, etaSeconds } : q));
         }
-      }, controller.signal, { folderId: targetFolderId });
+      }, controller.signal, { folderId: targetFolderId, folderPath });
       if (controller.signal.aborted) return;
       setQueue((current) => current.map((q) => q.id === item.id ? { ...q, status: "processing", progress: 100, uploadedBytes: item.file.size } : q));
       window.setTimeout(() => {
@@ -517,7 +535,7 @@ export default function Media() {
       controllers.current.delete(item.id);
       inFlightUploads.current.delete(item.id);
     }
-  }, [currentFolderId, queryClient, removeUpload, requireWorkspace, resolvedWorkspaceId]);
+  }, [activeFolderPath, currentFolderId, queryClient, removeUpload, requireWorkspace, resolvedWorkspaceId]);
 
   const cancelUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
@@ -597,7 +615,7 @@ export default function Media() {
       <div className="sticky top-14 z-20 border-b border-border/80 bg-[#080b11]/90 px-3 py-3 backdrop-blur-xl sm:top-16 sm:px-6 sm:py-4 lg:px-8">
         <div className="mx-auto flex max-w-420 flex-col gap-3 xl:flex-row xl:items-center">
           <div className="flex min-w-0 items-center gap-2 text-sm text-muted xl:w-72">
-            <button className="text-white hover:text-accent" onClick={() => setActiveFolder(null)}>Workspace</button>
+            <button className="text-white hover:text-accent" onClick={() => openFolder(null)}>Workspace</button>
             {activeFolder && <><ChevronRight size={15} /><button className="truncate text-white">{activeFolder.name}</button></>}
           </div>
           <div className="relative flex-1 xl:max-w-xl">
@@ -605,7 +623,7 @@ export default function Media() {
             <Input className="h-11 pl-9 text-base sm:h-10 sm:text-sm" placeholder="Search files, tags and folders" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:ml-auto">
-            <select className="col-span-2 h-11 min-w-0 rounded-md border border-border bg-panel px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:col-span-1 sm:h-10" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setActiveFolder(null); }}>
+            <select className="col-span-2 h-11 min-w-0 rounded-md border border-border bg-panel px-3 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:col-span-1 sm:h-10" value={resolvedWorkspaceId} onChange={(event) => { setWorkspaceId(event.target.value); openFolder(null); }}>
               {workspacesLoading ? <option>Loading workspaces...</option> : workspaces.map((workspace) => <option key={workspace._id} value={workspace._id}>{workspace.name}</option>)}
             </select>
             <LoadingButton variant="secondary" loading={syncMutation.isPending} loadingText="Syncing..." disabled={!resolvedWorkspaceId} onClick={() => resolvedWorkspaceId && syncMutation.mutate(resolvedWorkspaceId)}><RefreshCw size={16} /> Sync</LoadingButton>
@@ -630,7 +648,7 @@ export default function Media() {
             </div>
             <div className="space-y-1">
               {allFolders.length ? allFolders.map((folder) => (
-                <button key={folder._id} onClick={() => setActiveFolder(folder)} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted transition hover:bg-white/5.5 hover:text-white", activeFolder?._id === folder._id && "bg-white/7.5 text-white")}>
+                <button key={folder._id} onClick={() => openFolder(folder)} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted transition hover:bg-white/5.5 hover:text-white", activeFolder?._id === folder._id && "bg-white/7.5 text-white")}>
                   <Folder size={16} className="text-accent" />
                   <span className="truncate">{folder.path}</span>
                 </button>
@@ -749,7 +767,7 @@ export default function Media() {
                 <FolderCard
                   key={folder._id}
                   folder={folder}
-                  onOpen={() => setActiveFolder(folder)}
+                  onOpen={() => openFolder(folder)}
                   onRename={() => startRenameFolder(folder)}
                   onDelete={() => setDeleteFolderTarget(folder)}
                 />
@@ -764,14 +782,14 @@ export default function Media() {
               {[...currentFolders.map((folder) => ({ type: "folder" as const, folder })), ...currentFiles.map((item) => ({ type: "file" as const, item }))].map((entry) => entry.type === "folder" ? (
                 <div key={entry.folder._id} className="grid grid-cols-[32px_1fr_auto] gap-3 border-b border-border/70 px-3 py-3 text-left text-sm hover:bg-white/5 md:grid-cols-[36px_1fr_140px_130px_130px_120px] md:items-center md:px-4">
                   <Folder className="text-accent" size={18} />
-                  <button className="truncate text-left font-medium text-white" onClick={() => setActiveFolder(entry.folder)}>{entry.folder.name}</button>
+                  <button className="truncate text-left font-medium text-white" onClick={() => openFolder(entry.folder)}>{entry.folder.name}</button>
                   <span className="hidden text-muted md:block">Folder</span>
                   <span className="hidden text-muted md:block">-</span>
                   <span className="hidden text-muted md:block">-</span>
                   <div className="flex justify-end gap-1">
                     <button className="rounded p-1.5 text-muted hover:bg-white/5 hover:text-white" onClick={() => startRenameFolder(entry.folder)} title="Rename folder"><FileText size={15} /></button>
                     <button className="rounded p-1.5 text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={() => setDeleteFolderTarget(entry.folder)} title="Delete folder"><Trash2 size={15} /></button>
-                    <button className="rounded p-1.5 text-muted hover:bg-white/5 hover:text-white" onClick={() => setActiveFolder(entry.folder)} title="Open folder"><ChevronRight size={15} /></button>
+                    <button className="rounded p-1.5 text-muted hover:bg-white/5 hover:text-white" onClick={() => openFolder(entry.folder)} title="Open folder"><ChevronRight size={15} /></button>
                   </div>
                 </div>
               ) : (

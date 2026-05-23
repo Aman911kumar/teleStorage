@@ -228,7 +228,7 @@ export default function Workspaces() {
         <div className="fixed inset-0 z-50 grid place-items-end bg-black/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-4">
           <Card className="w-full max-w-md rounded-b-none p-5 sm:rounded-b-lg">
             <h2 className="font-semibold text-white">Delete workspace?</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">This disables the workspace in TeleStore. Existing Telegram messages are not removed.</p>
+            <p className="mt-2 text-sm leading-6 text-muted">This disables the workspace in TeleStorage. Existing Telegram messages are not removed.</p>
             <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
               <LoadingButton variant="ghost" disabled={deleteMutation.isPending} onClick={() => setDeleteTarget(null)}>Cancel</LoadingButton>
               <LoadingButton loading={deleteMutation.isPending} loadingText="Deleting..." onClick={() => deleteMutation.mutate(deleteTarget._id)}>Delete workspace</LoadingButton>

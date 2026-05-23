@@ -10,7 +10,7 @@ const workflow = ["Connect bot", "Validate channel", "Upload media", "Stream sec
 export default function Features() {
   return (
     <>
-      <Seo title="Features - TeleStore" description="Explore Telegram-powered media hosting, optimization and streaming features." />
+      <Seo title="Features - TeleStorage" description="Explore Telegram-powered media hosting, optimization and streaming features." />
       <main>
         <section className="relative overflow-hidden border-b border-border">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(91,140,255,0.22),transparent_28rem)]" />

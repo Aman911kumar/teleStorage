@@ -19,13 +19,13 @@ export default function Landing() {
 4. Start uploading media`;
   return (
     <>
-      <Seo title="TeleStore - Telegram Powered Media Cloud" description="Store images and videos directly in your own Telegram infrastructure." />
+      <Seo title="TeleStorage - Telegram Powered Media Cloud" description="Store images and videos directly in your own Telegram infrastructure." />
       <main className="overflow-x-hidden">
         <section className="mx-auto grid min-h-[calc(100svh-3.5rem)] max-w-7xl items-center gap-6 px-3 py-8 sm:gap-10 sm:px-6 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
           <motion.div className="min-w-0" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-panel px-3 py-1 text-[11px] text-muted sm:mb-5 sm:text-xs"><Zap size={13} className="shrink-0 text-accent" /> <span className="truncate">Telegram powered media cloud</span></div>
             <h1 className="max-w-full text-3xl font-semibold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">Store images and videos in your own Telegram cloud.</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-muted sm:mt-5 sm:text-base">TeleStore is a self-hosted media dashboard where every user connects their own Telegram bot and channel to host, optimize and stream media.</p>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-muted sm:mt-5 sm:text-base">TeleStorage is a self-hosted media dashboard where every user connects their own Telegram bot and channel to host, optimize and stream media.</p>
             <div className="mt-6 grid gap-3 sm:mt-8 sm:flex">
               <Link to="/signup" className="min-w-0"><Button className="w-full sm:w-auto" size="lg">Connect Telegram <ArrowRight size={17} /></Button></Link>
               <Link to="/docs" className="min-w-0"><Button className="w-full sm:w-auto" variant="secondary" size="lg"><Send size={17} /> Setup guide</Button></Link>

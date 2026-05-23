@@ -1,4 +1,4 @@
-# TeleStore Media Platform
+# TeleStorage Media Platform
 
 A production-oriented Node.js, Express, MongoDB, Redis, BullMQ, React, and Telegram Bot API media storage platform. It is provider-based so future apps can keep the same media API while migrating storage from Telegram to S3, Cloudflare R2, or Cloudinary.
 

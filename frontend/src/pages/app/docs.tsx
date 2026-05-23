@@ -295,7 +295,7 @@ export default function Docs() {
   };
 
   return (
-    <PageShell wide eyebrow="Developer Docs" title="Build with the TeleStore API" description="Production-ready guides, copyable examples, and API references for Telegram-backed media storage.">
+    <PageShell wide eyebrow="Developer Docs" title="Build with the TeleStorage API" description="Production-ready guides, copyable examples, and API references for Telegram-backed media storage.">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-6">
         <div className="min-w-0 space-y-8">
           <Card className="rounded-lg p-3 xl:hidden">
@@ -317,7 +317,7 @@ export default function Docs() {
             <BookOpen className="text-accent" size={26} />
             <h2 className="mt-4 text-xl font-semibold tracking-tight text-white sm:text-2xl">Introduction</h2>
             <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-              TeleStore is a self-hosted storage API where each workspace connects its own Telegram bot and channel. Your apps upload to TeleStore, TeleStore stores files in Telegram, and browsers stream through secure backend proxy URLs.
+              TeleStorage is a self-hosted storage API where each workspace connects its own Telegram bot and channel. Your apps upload to TeleStorage, TeleStorage stores files in Telegram, and browsers stream through secure backend proxy URLs.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {["Dashboard uploads", "External API uploads", "Secure media streaming"].map((item) => <div key={item} className="rounded-lg bg-white/2.5 p-4 text-sm font-medium text-white"><CheckCircle2 className="mb-2 text-emerald-300" size={16} />{item}</div>)}

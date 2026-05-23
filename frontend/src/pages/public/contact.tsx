@@ -7,7 +7,7 @@ import { Seo } from "@/components/seo";
 export default function Contact() {
   return (
     <>
-      <Seo title="Contact - TeleStore" description="Get support for your Telegram media cloud setup." />
+      <Seo title="Contact - TeleStorage" description="Get support for your Telegram media cloud setup." />
       <main className="overflow-x-hidden">
         <section className="border-b border-border bg-[linear-gradient(135deg,rgba(91,140,255,0.14),transparent_34rem)]">
           <div className="mx-auto grid max-w-7xl gap-8 px-3 py-12 sm:px-6 sm:py-16 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
@@ -32,7 +32,7 @@ export default function Contact() {
           {[
             ["Setup help", LifeBuoy, "BotFather, channel permissions and workspace validation."],
             ["Live chat", MessageCircle, "Placeholder for future realtime support."],
-            ["Email", Mail, "support@telestore.local"]
+            ["Email", Mail, "support@telestorage.local"]
           ].map(([title, Icon, text]) => (
             <Card key={title as string} className="p-4 sm:p-5">
               <Icon className="text-accent" />
@@ -47,7 +47,7 @@ export default function Contact() {
             <div>
               <MapPin className="text-accent" />
               <h2 className="mt-4 text-xl font-semibold text-white">Company info</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">TeleStore is built for operators who want a clean self-hosted media dashboard backed by their own Telegram infrastructure.</p>
+              <p className="mt-2 text-sm leading-6 text-muted">TeleStorage is built for operators who want a clean self-hosted media dashboard backed by their own Telegram infrastructure.</p>
             </div>
             <div className="grid min-h-36 place-items-center rounded-lg bg-[#090c13] p-6 text-center text-sm text-muted">Live chat widget placeholder</div>
           </div>

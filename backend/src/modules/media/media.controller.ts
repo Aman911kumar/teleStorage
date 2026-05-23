@@ -30,11 +30,13 @@ function parseJsonField<T>(value: unknown, fallback: T): T {
 }
 
 function uploadOptions(req: AuthenticatedRequest) {
+  const metadata = parseJsonField<Record<string, unknown>>(req.body.metadata, {});
   return {
     folderId: typeof req.body.folderId === "string" ? req.body.folderId : undefined,
+    folderPath: parseJsonField<string[] | string>(req.body.folderPath, (metadata.folderPath as string[] | string | undefined) ?? []),
     visibility: req.body.visibility === "public" ? ("public" as const) : ("private" as const),
     tags: parseJsonField<string[]>(req.body.tags, []),
-    metadata: parseJsonField<Record<string, string>>(req.body.metadata, {})
+    metadata
   };
 }
 

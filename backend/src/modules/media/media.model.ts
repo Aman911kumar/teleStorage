@@ -32,7 +32,8 @@ const mediaSchema = new Schema(
     uploadedBy: { type: Types.ObjectId, ref: "User", index: true },
     visibility: { type: String, enum: ["public", "private"], default: "private", index: true },
     tags: [{ type: String, index: true }],
-    customMetadata: { type: Map, of: String, default: {} },
+    folderPath: { type: [String], default: [] },
+    customMetadata: { type: Map, of: Schema.Types.Mixed, default: {} },
     metadata: {
       width: Number,
       height: Number,

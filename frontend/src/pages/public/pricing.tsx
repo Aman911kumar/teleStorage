@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Seo } from "@/components/seo";
 
 const plans = [
-  { name: "Self-hosted", monthly: 0, text: "Run TeleStore with your own Telegram bot and channel.", features: ["Unlimited workspaces", "Telegram storage", "Media dashboard", "Local queue mode"] },
+  { name: "Self-hosted", monthly: 0, text: "Run TeleStorage with your own Telegram bot and channel.", features: ["Unlimited workspaces", "Telegram storage", "Media dashboard", "Local queue mode"] },
   { name: "Pro Ops", monthly: 19, text: "For teams that want managed deployment and monitoring.", features: ["Health monitoring", "Priority updates", "Backup guidance", "Advanced analytics"] },
   { name: "Scale", monthly: 49, text: "For high-volume media workflows and custom infrastructure.", features: ["Worker scaling", "Cache tuning", "Migration support", "Custom provider planning"] }
 ];
@@ -14,7 +14,7 @@ export default function Pricing() {
   const [yearly, setYearly] = useState(true);
   return (
     <>
-      <Seo title="Pricing - TeleStore" description="Simple pricing structure for a self-hosted Telegram media cloud." />
+      <Seo title="Pricing - TeleStorage" description="Simple pricing structure for a self-hosted Telegram media cloud." />
       <main className="mx-auto max-w-7xl overflow-x-hidden px-3 py-12 sm:px-6 sm:py-16 lg:px-8">
         <section className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-accent">Pricing</p>

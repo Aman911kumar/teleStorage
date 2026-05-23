@@ -57,7 +57,7 @@ export function DashboardLayout() {
         <div className="mb-5 flex h-12 items-center justify-between">
           <Link to="/app" className="flex min-w-0 items-center gap-3 rounded-md px-2 font-semibold text-white">
             <span className="grid h-9 w-9 place-items-center rounded-md bg-[linear-gradient(180deg,#7b96ff,#526fff)] shadow-[0_12px_28px_rgba(82,111,255,0.28)]"><HardDrive size={18} /></span>
-            <span className="truncate">TeleStore</span>
+            <span className="truncate">TeleStorage</span>
           </Link>
           <button className="focus-ring rounded-md p-2 text-muted hover:bg-white/5 hover:text-white lg:hidden" onClick={() => setSidebarOpen(false)}><X size={18} /></button>
         </div>

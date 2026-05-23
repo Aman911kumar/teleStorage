@@ -23,9 +23,10 @@ import { trackTempFile, untrackTempFile } from "../../utils/activeTempFiles.js";
 type UploadKind = "image" | "video" | "audio" | "document";
 type UploadOptions = {
   folderId?: string;
+  folderPath?: string[] | string;
   tags?: string[];
   visibility?: "public" | "private";
-  metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
 };
 type ImageTransformOptions = {
   width?: number;
@@ -36,6 +37,22 @@ type ImageTransformOptions = {
 };
 const uploadLocks = new Map<string, Promise<void>>();
 const cacheLocks = new Map<string, Promise<string>>();
+
+function normalizeFolderPath(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split("/").map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeCustomMetadata(metadata: Record<string, unknown> = {}) {
+  const customMetadata = { ...metadata };
+  delete customMetadata.folderPath;
+  return customMetadata;
+}
 
 export class MediaService {
   private repository = new MediaRepository();
@@ -68,6 +85,8 @@ export class MediaService {
       const checksum = await sha256File(sourcePath);
       const duplicate = await this.repository.findByChecksum(checksum, workspaceId);
       if (duplicate) return this.toResponse(duplicate.id, true);
+      const folderPath = normalizeFolderPath(options.folderPath ?? options.metadata?.folderPath);
+      const customMetadata = normalizeCustomMetadata(options.metadata);
 
       lockKey = `${workspaceId}:${checksum}`;
       const activeUpload = uploadLocks.get(lockKey);
@@ -137,7 +156,8 @@ export class MediaService {
           uploadedBy: userId,
           visibility: options.visibility ?? "private",
           tags: options.tags ?? [],
-          customMetadata: options.metadata ?? {},
+          folderPath,
+          customMetadata,
           metadata: {},
           variants: [],
           thumbnail,

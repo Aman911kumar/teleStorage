@@ -24,7 +24,7 @@ export function PublicLayout() {
         <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-3 sm:h-16 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2 font-semibold text-white">
             <span className="grid h-8 w-8 place-items-center rounded-md bg-[linear-gradient(180deg,#7b96ff,#526fff)] shadow-[0_10px_26px_rgba(82,111,255,0.24)]"><HardDrive size={17} /></span>
-            TeleStore
+            TeleStorage
           </Link>
           <div className="hidden items-center gap-1 rounded-full border border-border bg-white/[0.025] p-1 text-sm text-muted md:flex">
             {links.map((link) => (

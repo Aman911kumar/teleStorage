@@ -82,9 +82,10 @@ async function handleApiUpload(req: AuthenticatedRequest, res: Response) {
   if (!files.length) throw new AppError("File is required", 400, "FILE_REQUIRED");
 
   const tags = parseJsonField<string[]>(req.body.tags, []);
-  const metadata = parseJsonField<Record<string, string>>(req.body.metadata, {});
+  const metadata = parseJsonField<Record<string, unknown>>(req.body.metadata, {});
   const visibility = req.body.visibility === "public" ? "public" : "private";
   const folderId = typeof req.body.folderId === "string" ? req.body.folderId : undefined;
+  const folderPath = parseJsonField<string[] | string>(req.body.folderPath, (metadata.folderPath as string[] | string | undefined) ?? []);
   const customFilename = typeof req.body.filename === "string" ? req.body.filename : undefined;
   const workspace = req.apiWorkspace!;
 
@@ -93,6 +94,7 @@ async function handleApiUpload(req: AuthenticatedRequest, res: Response) {
     uploaded.push(
       await mediaService.upload(file, workspace.ownerId, kindFromMime(file.mimetype), workspace.id, () => req.aborted || res.destroyed, {
         folderId,
+        folderPath,
         tags,
         metadata,
         visibility
@@ -188,6 +190,7 @@ apiV1Router.get(
         visibility: media.visibility,
         tags: media.tags,
         folderId: media.folderId,
+        folderPath: media.folderPath,
         metadata: media.customMetadata,
         status: media.status,
         publicUrl: `/media/${media.id}/view`,

@@ -184,6 +184,7 @@ export type MediaItem = {
   status: string;
   createdAt: string;
   folderId?: string;
+  folderPath?: string[];
   tags?: string[];
   mediaType?: string;
   metadata?: { width?: number; height?: number; duration?: number; format?: string };
@@ -256,11 +257,12 @@ function normalizeMediaItem<T extends MediaItem>(item: T): T {
   };
 }
 
-export async function uploadMedia(file: File, workspaceId?: string, onProgress?: (value: number, loaded?: number, total?: number) => void, signal?: AbortSignal, options?: { folderId?: string; tags?: string[]; visibility?: "public" | "private"; metadata?: Record<string, string> }) {
+export async function uploadMedia(file: File, workspaceId?: string, onProgress?: (value: number, loaded?: number, total?: number) => void, signal?: AbortSignal, options?: { folderId?: string; folderPath?: string[]; tags?: string[]; visibility?: "public" | "private"; metadata?: Record<string, unknown> }) {
   const form = new FormData();
   form.append("file", file);
   if (workspaceId) form.append("workspaceId", workspaceId);
   if (options?.folderId) form.append("folderId", options.folderId);
+  if (options?.folderPath?.length) form.append("folderPath", JSON.stringify(options.folderPath));
   if (options?.visibility) form.append("visibility", options.visibility);
   if (options?.tags?.length) form.append("tags", JSON.stringify(options.tags));
   if (options?.metadata) form.append("metadata", JSON.stringify(options.metadata));

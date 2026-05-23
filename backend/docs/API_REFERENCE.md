@@ -1,6 +1,6 @@
-# TeleStore API Reference
+# TeleStorage API Reference
 
-TeleStore is now a self-hosted Telegram media cloud. Users connect their own Telegram bot and channel, then upload media into that channel through the dashboard.
+TeleStorage is now a self-hosted Telegram media cloud. Users connect their own Telegram bot and channel, then upload media into that channel through the dashboard.
 
 Base URL:
 

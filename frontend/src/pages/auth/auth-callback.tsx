@@ -29,7 +29,7 @@ export default function AuthCallback() {
   }, [navigate, setSession]);
 
   return (
-    <AuthCard title="Completing sign in" subtitle="Google verified your account. Securing your TeleStore session now." footer="You will be redirected automatically.">
+    <AuthCard title="Completing sign in" subtitle="Google verified your account. Securing your TeleStorage session now." footer="You will be redirected automatically.">
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
         <div className="h-full w-1/2 animate-pulse rounded-full bg-accent" />
       </div>

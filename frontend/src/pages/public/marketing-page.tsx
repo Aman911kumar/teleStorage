@@ -5,9 +5,9 @@ import { Seo } from "@/components/seo";
 export default function MarketingPage({ title }: { title: string }) {
   return (
     <>
-      <Seo title={`${title} - TeleStore`} description={`${title} for the TeleStore media storage platform.`} />
+      <Seo title={`${title} - TeleStorage`} description={`${title} for the TeleStorage media storage platform.`} />
       <main className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-accent">TeleStore</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-accent">TeleStorage</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white">{title}</h1>
         <p className="mt-4 max-w-2xl text-muted">Developer-friendly media storage for images, videos and files, with dashboard analytics and provider-based infrastructure.</p>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
